@@ -1,0 +1,2878 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Quizly</title>
+  <style>
+/* ============================================
+   QUIZLY — STYLESHEET
+   ============================================ */
+
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+:root {
+  --bg: #f7f8fa;
+  --surface: #ffffff;
+  --surface-alt: #f0f1f5;
+  --border: #e2e4e9;
+  --border-dark: #c8cad1;
+  --text: #1a1d23;
+  --text-muted: #6b7080;
+  --text-faint: #9ca3b0;
+  --primary: #3b4fe4;
+  --primary-hover: #2f42cc;
+  --primary-light: #eef0fd;
+  --success: #16a34a;
+  --success-light: #dcfce7;
+  --danger: #dc2626;
+  --danger-light: #fee2e2;
+  --warn: #ca8a04;
+  --warn-light: #fefce8;
+  --sidebar-w: 220px;
+  --radius: 8px;
+  --radius-lg: 12px;
+  --shadow: 0 1px 3px rgba(0,0,0,0.08), 0 1px 2px rgba(0,0,0,0.04);
+  --shadow-md: 0 4px 12px rgba(0,0,0,0.10), 0 2px 4px rgba(0,0,0,0.05);
+}
+
+html { height: 100%; }
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  display: flex;
+  height: 100vh;
+  overflow: hidden;
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+/* ============================================
+   SIDEBAR
+   ============================================ */
+
+.sidebar {
+  width: var(--sidebar-w);
+  min-width: var(--sidebar-w);
+  height: 100vh;
+  background: var(--surface);
+  border-right: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  position: relative;
+  z-index: 10;
+}
+
+.sidebar-logo {
+  padding: 18px 20px 16px;
+  border-bottom: 1px solid var(--border);
+}
+
+.logo-text {
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--primary);
+  letter-spacing: -0.3px;
+}
+
+.sidebar-nav {
+  flex: 1;
+  padding: 12px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  overflow-y: auto;
+}
+
+.nav-section-label {
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  color: var(--text-faint);
+  padding: 8px 10px 4px;
+  display: block;
+}
+
+.nav-item {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  width: 100%;
+  padding: 8px 10px;
+  border: none;
+  background: none;
+  border-radius: var(--radius);
+  font-size: 13.5px;
+  font-weight: 500;
+  color: var(--text-muted);
+  cursor: pointer;
+  text-align: left;
+  transition: background 0.12s, color 0.12s;
+}
+
+.nav-item:hover {
+  background: var(--surface-alt);
+  color: var(--text);
+}
+
+.nav-item.active {
+  background: var(--primary-light);
+  color: var(--primary);
+  font-weight: 600;
+}
+
+.nav-icon {
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+  opacity: 0.8;
+}
+
+.nav-item.active .nav-icon { opacity: 1; }
+
+.sidebar-footer {
+  padding: 14px 14px;
+  border-top: 1px solid var(--border);
+}
+
+.streak-badge {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+
+/* ============================================
+   MAIN & PAGES
+   ============================================ */
+
+.main {
+  flex: 1;
+  overflow-y: auto;
+  height: 100vh;
+  position: relative;
+}
+
+.page {
+  display: none;
+  padding: 32px 36px 48px;
+  max-width: 860px;
+  min-height: 100%;
+}
+
+.page.active { display: block; }
+
+.page-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  margin-bottom: 24px;
+  gap: 12px;
+}
+
+.page-title {
+  font-size: 22px;
+  font-weight: 700;
+  letter-spacing: -0.3px;
+  line-height: 1.2;
+}
+
+.page-sub {
+  font-size: 13px;
+  color: var(--text-muted);
+  margin-top: 4px;
+}
+
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+/* ============================================
+   BUTTONS
+   ============================================ */
+
+.btn-primary {
+  padding: 8px 16px;
+  background: var(--primary);
+  color: #fff;
+  border: none;
+  border-radius: var(--radius);
+  font-size: 13.5px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.12s, transform 0.1s;
+  white-space: nowrap;
+}
+
+.btn-primary:hover { background: var(--primary-hover); }
+.btn-primary:active { transform: scale(0.98); }
+
+.btn-primary.hidden,
+.hidden { display: none !important; }
+
+.btn-outline {
+  padding: 8px 16px;
+  background: transparent;
+  color: var(--text);
+  border: 1px solid var(--border-dark);
+  border-radius: var(--radius);
+  font-size: 13.5px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.12s, border-color 0.12s;
+  white-space: nowrap;
+}
+
+.btn-outline:hover { background: var(--surface-alt); }
+
+.btn-ghost {
+  padding: 7px 14px;
+  background: transparent;
+  color: var(--text-muted);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.12s;
+}
+
+.btn-ghost:hover { background: var(--surface-alt); color: var(--text); }
+
+.btn-danger {
+  padding: 8px 16px;
+  background: var(--danger);
+  color: #fff;
+  border: none;
+  border-radius: var(--radius);
+  font-size: 13.5px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.btn-danger:hover { background: #b91c1c; }
+
+/* ============================================
+   STAT CARDS
+   ============================================ */
+
+.stat-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 12px;
+  margin-bottom: 28px;
+}
+
+.stat-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 16px 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.stat-label {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.stat-value {
+  font-size: 26px;
+  font-weight: 700;
+  letter-spacing: -0.5px;
+  color: var(--text);
+}
+
+/* ============================================
+   SECTION
+   ============================================ */
+
+.section-block { margin-bottom: 28px; }
+
+.section-title {
+  font-size: 15px;
+  font-weight: 700;
+  margin-bottom: 12px;
+}
+
+/* ============================================
+   SET CARDS
+   ============================================ */
+
+.set-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.set-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 16px 18px;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  transition: border-color 0.12s, box-shadow 0.12s;
+}
+
+.set-card:hover {
+  border-color: var(--border-dark);
+  box-shadow: var(--shadow);
+}
+
+.set-card-body { flex: 1; min-width: 0; }
+
+.set-card-title {
+  font-size: 14px;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.set-card-meta {
+  font-size: 12px;
+  color: var(--text-muted);
+  margin-top: 3px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.set-subject-badge {
+  display: inline-block;
+  padding: 2px 8px;
+  background: var(--primary-light);
+  color: var(--primary);
+  border-radius: 20px;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.set-card-progress {
+  width: 80px;
+  flex-shrink: 0;
+}
+
+.set-card-progress-bar {
+  height: 4px;
+  background: var(--border);
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.set-card-progress-fill {
+  height: 100%;
+  background: var(--primary);
+  border-radius: 2px;
+  transition: width 0.3s;
+}
+
+.set-card-progress-label {
+  font-size: 11px;
+  color: var(--text-muted);
+  margin-top: 4px;
+}
+
+.set-card-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.icon-btn {
+  width: 32px;
+  height: 32px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: none;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-muted);
+  transition: background 0.12s, color 0.12s, border-color 0.12s;
+}
+
+.icon-btn:hover { background: var(--surface-alt); color: var(--text); border-color: var(--border-dark); }
+.icon-btn.danger:hover { background: var(--danger-light); color: var(--danger); border-color: var(--danger); }
+
+.study-btn {
+  padding: 6px 14px;
+  font-size: 12px;
+  font-weight: 600;
+  background: var(--primary-light);
+  color: var(--primary);
+  border: 1px solid transparent;
+  border-radius: var(--radius);
+  cursor: pointer;
+  transition: background 0.12s;
+  white-space: nowrap;
+}
+
+.study-btn:hover { background: var(--primary); color: #fff; }
+
+.empty-state {
+  text-align: center;
+  padding: 48px 20px;
+  color: var(--text-muted);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+  font-size: 14px;
+}
+
+/* ============================================
+   SEARCH
+   ============================================ */
+
+.search-bar-wrap { margin-bottom: 16px; }
+
+.search-input {
+  width: 100%;
+  max-width: 360px;
+  padding: 9px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  font-size: 13.5px;
+  background: var(--surface);
+  color: var(--text);
+  outline: none;
+  transition: border-color 0.12s;
+}
+
+.search-input:focus { border-color: var(--primary); }
+
+/* ============================================
+   PROGRESS BARS
+   ============================================ */
+
+.progress-track {
+  height: 5px;
+  background: var(--border);
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.progress-fill {
+  height: 100%;
+  background: var(--primary);
+  border-radius: 3px;
+  transition: width 0.3s ease;
+}
+
+/* ============================================
+   FLASHCARDS
+   ============================================ */
+
+.fc-meta-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 10px;
+  font-size: 13px;
+  color: var(--text-muted);
+}
+
+.fc-progress-text { font-weight: 600; }
+
+.fc-stage {
+  display: flex;
+  justify-content: center;
+  margin: 20px 0;
+}
+
+.fc-scene {
+  width: 100%;
+  max-width: 620px;
+  height: 300px;
+  perspective: 1200px;
+  cursor: pointer;
+}
+
+.fc-inner {
+  width: 100%;
+  height: 100%;
+  position: relative;
+  transform-style: preserve-3d;
+  transition: transform 0.48s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.fc-inner.flipped { transform: rotateY(180deg); }
+
+.fc-face {
+  position: absolute;
+  inset: 0;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 36px 40px;
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+}
+
+.fc-back {
+  transform: rotateY(180deg);
+  background: var(--primary-light);
+  border-color: #c8cefc;
+}
+
+.fc-face-label {
+  position: absolute;
+  top: 14px;
+  left: 18px;
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-faint);
+}
+
+.fc-tap-hint {
+  position: absolute;
+  bottom: 14px;
+  font-size: 11px;
+  color: var(--text-faint);
+}
+
+.fc-text {
+  font-size: 20px;
+  font-weight: 600;
+  text-align: center;
+  line-height: 1.45;
+  color: var(--text);
+}
+
+.fc-back .fc-text { font-weight: 400; font-size: 17px; color: var(--text); }
+
+.fc-controls {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
+.fc-btn {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 9px 18px;
+  border: 1px solid var(--border-dark);
+  border-radius: var(--radius);
+  background: var(--surface);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  color: var(--text-muted);
+  transition: all 0.12s;
+}
+
+.fc-btn:hover { border-color: var(--border-dark); background: var(--surface-alt); }
+
+.fc-btn-wrong:hover { border-color: var(--danger); color: var(--danger); background: var(--danger-light); }
+.fc-btn-correct:hover { border-color: var(--success); color: var(--success); background: var(--success-light); }
+
+.fc-nav {
+  display: flex;
+  gap: 6px;
+}
+
+.fc-arrow {
+  width: 36px;
+  height: 36px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  color: var(--text-muted);
+  transition: background 0.12s, border-color 0.12s;
+}
+
+.fc-arrow:hover { background: var(--surface-alt); border-color: var(--border-dark); color: var(--text); }
+
+.fc-session-stats {
+  display: flex;
+  justify-content: center;
+  gap: 14px;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.fc-stat.correct { color: var(--success); }
+.fc-stat.wrong { color: var(--danger); }
+
+/* ============================================
+   QUIZ / LEARN SHARED
+   ============================================ */
+
+.learn-progress-row,
+.quiz-progress-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.learn-progress-text { font-size: 12px; font-weight: 600; color: var(--text-muted); white-space: nowrap; }
+
+.learn-score-row {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 20px;
+  flex-wrap: wrap;
+}
+
+.score-chip {
+  padding: 5px 12px;
+  border-radius: 20px;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.score-chip.correct { background: var(--success-light); color: var(--success); }
+.score-chip.wrong { background: var(--danger-light); color: var(--danger); }
+.score-chip.neutral { background: var(--surface-alt); color: var(--text-muted); }
+
+.quiz-prompt-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 24px 26px;
+  margin-bottom: 14px;
+}
+
+.quiz-prompt-label {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  color: var(--text-faint);
+  margin-bottom: 8px;
+}
+
+.quiz-question {
+  font-size: 17px;
+  font-weight: 600;
+  line-height: 1.45;
+  color: var(--text);
+}
+
+.quiz-options {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 14px;
+}
+
+.quiz-option {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 13px 16px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  color: var(--text);
+  transition: border-color 0.12s, background 0.12s;
+  text-align: left;
+  width: 100%;
+}
+
+.quiz-option:hover:not(.disabled) {
+  border-color: var(--primary);
+  background: var(--primary-light);
+}
+
+.quiz-option.correct {
+  border-color: var(--success);
+  background: var(--success-light);
+  color: var(--success);
+  font-weight: 600;
+}
+
+.quiz-option.wrong {
+  border-color: var(--danger);
+  background: var(--danger-light);
+  color: var(--danger);
+}
+
+.quiz-option.disabled { cursor: default; pointer-events: none; }
+
+.opt-key {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: var(--surface-alt);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  font-weight: 700;
+  flex-shrink: 0;
+  color: var(--text-muted);
+}
+
+.quiz-option.correct .opt-key { background: var(--success); color: #fff; }
+.quiz-option.wrong .opt-key { background: var(--danger); color: #fff; }
+
+.quiz-feedback {
+  padding: 11px 14px;
+  border-radius: var(--radius);
+  font-size: 13px;
+  font-weight: 600;
+  margin-bottom: 14px;
+}
+
+.quiz-feedback.correct { background: var(--success-light); color: var(--success); }
+.quiz-feedback.wrong { background: var(--danger-light); color: var(--danger); }
+
+.quiz-nav-row,
+.quiz-next-row {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
+/* ============================================
+   MATCH GAME
+   ============================================ */
+
+.timer-display {
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--text);
+  letter-spacing: -0.3px;
+  min-width: 60px;
+}
+
+.match-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+  max-width: 700px;
+}
+
+.match-tile {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 14px 16px;
+  text-align: center;
+  font-size: 13.5px;
+  font-weight: 500;
+  cursor: pointer;
+  min-height: 80px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1.4;
+  transition: border-color 0.15s, background 0.15s, transform 0.1s;
+  user-select: none;
+}
+
+.match-tile:hover:not(.matched):not(.selected) {
+  border-color: var(--border-dark);
+  background: var(--surface-alt);
+}
+
+.match-tile.selected {
+  border-color: var(--primary);
+  background: var(--primary-light);
+  color: var(--primary);
+  font-weight: 600;
+}
+
+.match-tile.matched {
+  border-color: var(--success);
+  background: var(--success-light);
+  color: var(--success);
+  opacity: 0.55;
+  pointer-events: none;
+}
+
+.match-tile.shake {
+  animation: shake 0.28s ease;
+  border-color: var(--danger);
+  background: var(--danger-light);
+}
+
+@keyframes shake {
+  0%, 100% { transform: translateX(0); }
+  25% { transform: translateX(-5px); }
+  75% { transform: translateX(5px); }
+}
+
+/* ============================================
+   CREATE FORM
+   ============================================ */
+
+.create-form { max-width: 660px; }
+
+.form-group { margin-bottom: 18px; }
+
+.form-label {
+  display: block;
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-muted);
+  margin-bottom: 7px;
+}
+
+.optional-label {
+  font-weight: 400;
+  text-transform: none;
+  letter-spacing: 0;
+  color: var(--text-faint);
+}
+
+.form-input {
+  width: 100%;
+  padding: 9px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  font-size: 14px;
+  font-family: inherit;
+  background: var(--surface);
+  color: var(--text);
+  outline: none;
+  transition: border-color 0.12s;
+}
+
+.form-input:focus { border-color: var(--primary); }
+
+select.form-input { cursor: pointer; }
+
+.cards-section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 10px;
+}
+
+.card-count-label {
+  font-size: 12px;
+  color: var(--text-muted);
+  font-weight: 500;
+}
+
+.card-rows { display: flex; flex-direction: column; gap: 10px; margin-bottom: 10px; }
+
+.card-row {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 14px;
+  position: relative;
+}
+
+.card-row-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 10px;
+}
+
+.card-row-num {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--text-faint);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.card-row-remove {
+  width: 26px;
+  height: 26px;
+  border: none;
+  background: none;
+  cursor: pointer;
+  color: var(--text-faint);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius);
+  transition: background 0.12s, color 0.12s;
+}
+
+.card-row-remove:hover { background: var(--danger-light); color: var(--danger); }
+
+.card-inputs {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.card-textarea {
+  width: 100%;
+  min-height: 70px;
+  padding: 9px 11px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  font-size: 13.5px;
+  font-family: inherit;
+  background: var(--surface-alt);
+  color: var(--text);
+  resize: vertical;
+  outline: none;
+  transition: border-color 0.12s;
+}
+
+.card-textarea:focus { border-color: var(--primary); background: var(--surface); }
+.card-textarea::placeholder { color: var(--text-faint); }
+
+.add-card-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  width: 100%;
+  padding: 12px;
+  background: none;
+  border: 1.5px dashed var(--border-dark);
+  border-radius: var(--radius-lg);
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: border-color 0.12s, color 0.12s, background 0.12s;
+  margin-bottom: 20px;
+}
+
+.add-card-btn:hover {
+  border-color: var(--primary);
+  color: var(--primary);
+  background: var(--primary-light);
+}
+
+.form-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  padding-top: 8px;
+  border-top: 1px solid var(--border);
+}
+
+/* ============================================
+   STATS PAGE
+   ============================================ */
+
+.stats-set-list { display: flex; flex-direction: column; gap: 8px; }
+
+.stats-set-row {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 14px 18px;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.stats-set-name {
+  flex: 1;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.stats-set-detail {
+  font-size: 12px;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+.accuracy-bar-wrap {
+  width: 100px;
+}
+
+.accuracy-bar {
+  height: 4px;
+  background: var(--border);
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.accuracy-fill {
+  height: 100%;
+  border-radius: 2px;
+}
+
+.accuracy-fill.good { background: var(--success); }
+.accuracy-fill.mid { background: var(--warn); }
+.accuracy-fill.low { background: var(--danger); }
+
+/* ============================================
+   RESULT SCREEN
+   ============================================ */
+
+.result-screen {
+  text-align: center;
+  padding: 40px 20px;
+  max-width: 480px;
+  margin: 0 auto;
+}
+
+.result-title {
+  font-size: 22px;
+  font-weight: 700;
+  margin-bottom: 8px;
+}
+
+.result-sub {
+  font-size: 15px;
+  color: var(--text-muted);
+  margin-bottom: 24px;
+}
+
+.result-stats {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin-bottom: 28px;
+}
+
+.result-stat-card {
+  padding: 16px;
+  border-radius: var(--radius-lg);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.result-stat-card.correct { background: var(--success-light); color: var(--success); }
+.result-stat-card.wrong { background: var(--danger-light); color: var(--danger); }
+.result-stat-card.neutral { background: var(--surface-alt); color: var(--text-muted); }
+
+.result-stat-val {
+  font-size: 30px;
+  font-weight: 700;
+  display: block;
+  margin-bottom: 4px;
+}
+
+.result-actions {
+  display: flex;
+  gap: 10px;
+  justify-content: center;
+}
+
+/* ============================================
+   MODAL
+   ============================================ */
+
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.3);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 200;
+}
+
+.modal {
+  background: var(--surface);
+  border-radius: var(--radius-lg);
+  padding: 28px 32px;
+  max-width: 400px;
+  width: 90%;
+  box-shadow: var(--shadow-md);
+}
+
+.modal-title {
+  font-size: 17px;
+  font-weight: 700;
+  margin-bottom: 10px;
+}
+
+.modal-body {
+  font-size: 14px;
+  color: var(--text-muted);
+  margin-bottom: 22px;
+  line-height: 1.6;
+}
+
+.modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
+/* ============================================
+   TOAST
+   ============================================ */
+
+.toast {
+  position: fixed;
+  bottom: 24px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: var(--text);
+  color: var(--surface);
+  padding: 10px 20px;
+  border-radius: var(--radius);
+  font-size: 13.5px;
+  font-weight: 500;
+  z-index: 300;
+  box-shadow: var(--shadow-md);
+  pointer-events: none;
+  transition: opacity 0.2s;
+}
+
+.toast.success { background: var(--success); }
+.toast.error { background: var(--danger); }
+
+/* ============================================
+   RESPONSIVE
+   ============================================ */
+
+@media (max-width: 700px) {
+  body { flex-direction: column; }
+  .sidebar { width: 100%; height: auto; min-width: unset; flex-direction: row; overflow-x: auto; }
+  .sidebar-logo { padding: 14px 16px; }
+  .sidebar-nav { flex-direction: row; padding: 8px; overflow-x: auto; }
+  .nav-section-label { display: none; }
+  .sidebar-footer { display: none; }
+  .main { height: calc(100vh - 80px); }
+  .page { padding: 20px 16px 40px; }
+  .stat-grid { grid-template-columns: 1fr 1fr; }
+  .match-grid { grid-template-columns: 1fr 1fr; }
+  .card-inputs { grid-template-columns: 1fr; }
+}
+  </style>
+</head>
+<body>
+
+  <aside class="sidebar" id="sidebar">
+    <div class="sidebar-logo">
+      <span class="logo-text">Quizly</span>
+    </div>
+    <nav class="sidebar-nav">
+      <span class="nav-section-label">Study</span>
+      <button class="nav-item active" data-page="home">
+        <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+        Home
+      </button>
+      <button class="nav-item" data-page="sets">
+        <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
+        Study Sets
+      </button>
+      <button class="nav-item" data-page="flashcards" id="nav-flashcards">
+        <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/></svg>
+        Flashcards
+      </button>
+      <button class="nav-item" data-page="learn" id="nav-learn">
+        <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>
+        Learn
+      </button>
+      <button class="nav-item" data-page="quiz" id="nav-quiz">
+        <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/></svg>
+        Quiz
+      </button>
+      <button class="nav-item" data-page="match" id="nav-match">
+        <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+        Match Game
+      </button>
+      <span class="nav-section-label" style="margin-top:12px">Manage</span>
+      <button class="nav-item" data-page="create">
+        <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+        Create Set
+      </button>
+      <button class="nav-item" data-page="stats">
+        <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
+        Progress
+      </button>
+    </nav>
+    <div class="sidebar-footer">
+      <div class="streak-badge" id="streak-badge">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>
+        <span id="streak-count">0</span> day streak
+      </div>
+    </div>
+  </aside>
+
+  <main class="main" id="main">
+
+    <!-- HOME -->
+    <section class="page active" id="page-home">
+      <div class="page-header">
+        <div>
+          <h1 class="page-title" id="home-greeting">Welcome back</h1>
+          <p class="page-sub">Select a set and start studying.</p>
+        </div>
+      </div>
+      <div class="stat-grid">
+        <div class="stat-card"><span class="stat-label">Total Sets</span><span class="stat-value" id="stat-sets">0</span></div>
+        <div class="stat-card"><span class="stat-label">Cards Studied</span><span class="stat-value" id="stat-studied">0</span></div>
+        <div class="stat-card"><span class="stat-label">Avg. Accuracy</span><span class="stat-value" id="stat-accuracy">-</span></div>
+        <div class="stat-card"><span class="stat-label">Study Streak</span><span class="stat-value" id="stat-streak">0d</span></div>
+      </div>
+      <div class="section-block">
+        <h2 class="section-title">Your Sets</h2>
+        <div class="set-list" id="home-set-list"></div>
+      </div>
+    </section>
+
+    <!-- SETS -->
+    <section class="page" id="page-sets">
+      <div class="page-header">
+        <h1 class="page-title">Study Sets</h1>
+        <button class="btn-primary" onclick="App.navigate('create')">New Set</button>
+      </div>
+      <div class="search-bar-wrap">
+        <input type="text" class="search-input" id="sets-search" placeholder="Search sets..." oninput="SetsPage.filterSets(this.value)" />
+      </div>
+      <div class="set-list" id="sets-list"></div>
+    </section>
+
+    <!-- FLASHCARDS -->
+    <section class="page" id="page-flashcards">
+      <div class="page-header">
+        <div>
+          <h1 class="page-title" id="fc-title">Flashcards</h1>
+          <p class="page-sub" id="fc-set-meta"></p>
+        </div>
+        <div class="header-actions">
+          <button class="btn-ghost" onclick="FlashcardPage.shuffle()">Shuffle</button>
+          <button class="btn-ghost" onclick="FlashcardPage.restart()">Restart</button>
+        </div>
+      </div>
+      <div class="fc-meta-row">
+        <span></span>
+        <span class="fc-progress-text" id="fc-progress-text">1 / 1</span>
+      </div>
+      <div class="progress-track"><div class="progress-fill" id="fc-progress-fill" style="width:0%"></div></div>
+      <div class="fc-stage">
+        <div class="fc-scene" onclick="FlashcardPage.flip()" id="fc-scene">
+          <div class="fc-inner" id="fc-inner">
+            <div class="fc-face fc-front">
+              <span class="fc-face-label">Term</span>
+              <p class="fc-text" id="fc-term-text"></p>
+              <span class="fc-tap-hint">Click to reveal</span>
+            </div>
+            <div class="fc-face fc-back">
+              <span class="fc-face-label">Definition</span>
+              <p class="fc-text" id="fc-def-text"></p>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="fc-controls">
+        <button class="fc-btn fc-btn-wrong" onclick="FlashcardPage.mark(false)">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" width="16" height="16"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+          Still learning
+        </button>
+        <div class="fc-nav">
+          <button class="fc-arrow" onclick="FlashcardPage.prev()">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><polyline points="15 18 9 12 15 6"/></svg>
+          </button>
+          <button class="fc-arrow" onclick="FlashcardPage.next()">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><polyline points="9 18 15 12 9 6"/></svg>
+          </button>
+        </div>
+        <button class="fc-btn fc-btn-correct" onclick="FlashcardPage.mark(true)">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" width="16" height="16"><polyline points="20 6 9 17 4 12"/></svg>
+          Got it
+        </button>
+      </div>
+      <div class="fc-session-stats">
+        <span class="fc-stat correct" id="fc-stat-correct">0 correct</span>
+        <span class="fc-stat wrong" id="fc-stat-wrong">0 learning</span>
+      </div>
+    </section>
+
+    <!-- LEARN -->
+    <section class="page" id="page-learn">
+      <div class="page-header">
+        <div>
+          <h1 class="page-title" id="learn-title">Learn</h1>
+          <p class="page-sub" id="learn-sub"></p>
+        </div>
+      </div>
+      <div class="learn-progress-row">
+        <div class="progress-track" style="flex:1"><div class="progress-fill" id="learn-progress-fill" style="width:0%"></div></div>
+        <span class="learn-progress-text" id="learn-progress-text">0 / 0</span>
+      </div>
+      <div class="learn-score-row">
+        <div class="score-chip correct" id="lsc-correct">0 correct</div>
+        <div class="score-chip wrong" id="lsc-wrong">0 incorrect</div>
+        <div class="score-chip neutral" id="lsc-remain">0 remaining</div>
+      </div>
+      <div id="learn-card-wrap">
+        <div class="quiz-prompt-card">
+          <p class="quiz-prompt-label">What is the term for:</p>
+          <p class="quiz-question" id="learn-question"></p>
+        </div>
+        <div class="quiz-options" id="learn-options"></div>
+        <div class="quiz-feedback hidden" id="learn-feedback"></div>
+        <div class="quiz-next-row">
+          <button class="btn-primary hidden" id="learn-next-btn" onclick="LearnPage.next()">Next</button>
+        </div>
+      </div>
+      <div class="result-screen hidden" id="learn-result">
+        <h2 class="result-title">Round complete</h2>
+        <p class="result-sub" id="learn-result-sub"></p>
+        <div class="result-stats" id="learn-result-stats"></div>
+        <div class="result-actions">
+          <button class="btn-outline" onclick="LearnPage.restart()">Study Again</button>
+          <button class="btn-primary" onclick="App.navigate('quiz')">Take Quiz</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- QUIZ -->
+    <section class="page" id="page-quiz">
+      <div class="page-header">
+        <div>
+          <h1 class="page-title" id="quiz-title">Quiz</h1>
+          <p class="page-sub" id="quiz-sub"></p>
+        </div>
+      </div>
+      <div class="quiz-progress-row">
+        <div class="progress-track" style="flex:1"><div class="progress-fill" id="quiz-progress-fill" style="width:0%"></div></div>
+        <span class="learn-progress-text" id="quiz-progress-text">1 / 0</span>
+      </div>
+      <div id="quiz-active-section">
+        <div class="quiz-prompt-card">
+          <p class="quiz-prompt-label" id="quiz-q-label">Question 1</p>
+          <p class="quiz-question" id="quiz-question"></p>
+        </div>
+        <div class="quiz-options" id="quiz-options"></div>
+        <div class="quiz-feedback hidden" id="quiz-feedback"></div>
+        <div class="quiz-nav-row">
+          <button class="btn-outline" onclick="QuizPage.prev()">Previous</button>
+          <button class="btn-primary" onclick="QuizPage.next()" id="quiz-next-btn">Next</button>
+        </div>
+      </div>
+      <div class="result-screen hidden" id="quiz-result">
+        <h2 class="result-title" id="quiz-result-title">Quiz Complete</h2>
+        <p class="result-sub" id="quiz-result-sub"></p>
+        <div class="result-stats" id="quiz-result-stats"></div>
+        <div class="result-actions">
+          <button class="btn-outline" onclick="QuizPage.restart()">Retake Quiz</button>
+          <button class="btn-primary" onclick="App.navigate('learn')">Review in Learn</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- MATCH -->
+    <section class="page" id="page-match">
+      <div class="page-header">
+        <h1 class="page-title">Match Game</h1>
+        <div class="header-actions">
+          <span class="timer-display" id="match-timer-display">0.0s</span>
+          <button class="btn-ghost" onclick="MatchPage.init()">Restart</button>
+        </div>
+      </div>
+      <p class="page-sub" style="margin-bottom:20px">Match every term with its definition. Timer starts on first click.</p>
+      <div class="match-grid" id="match-grid"></div>
+      <div class="result-screen hidden" id="match-result">
+        <h2 class="result-title">Complete!</h2>
+        <p class="result-sub" id="match-result-sub"></p>
+        <div class="result-actions">
+          <button class="btn-outline" onclick="MatchPage.init()">Play Again</button>
+          <button class="btn-primary" onclick="App.navigate('quiz')">Take Quiz</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- CREATE -->
+    <section class="page" id="page-create">
+      <div class="page-header">
+        <h1 class="page-title" id="create-title">Create Set</h1>
+      </div>
+      <div class="create-form">
+        <input type="hidden" id="edit-set-id" value="" />
+        <div class="form-group">
+          <label class="form-label" for="new-set-title">Title</label>
+          <input type="text" class="form-input" id="new-set-title" placeholder="e.g. Biology — Cell Structure" maxlength="80" />
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="new-set-subject">Subject</label>
+          <select class="form-input" id="new-set-subject">
+            <option value="General">General</option>
+            <option value="Biology">Biology</option>
+            <option value="Chemistry">Chemistry</option>
+            <option value="Physics">Physics</option>
+            <option value="History">History</option>
+            <option value="Geography">Geography</option>
+            <option value="Mathematics">Mathematics</option>
+            <option value="Computer Science">Computer Science</option>
+            <option value="Literature">Literature</option>
+            <option value="Language">Language</option>
+            <option value="Economics">Economics</option>
+            <option value="Psychology">Psychology</option>
+            <option value="Other">Other</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="new-set-desc">Description <span class="optional-label">(optional)</span></label>
+          <input type="text" class="form-input" id="new-set-desc" placeholder="Brief description of this set" maxlength="140" />
+        </div>
+        <div class="cards-section-header">
+          <label class="form-label">Cards</label>
+          <span class="card-count-label" id="card-count-label">0 cards</span>
+        </div>
+        <div class="card-rows" id="card-rows"></div>
+        <button class="add-card-btn" onclick="CreatePage.addRow()">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+          Add card
+        </button>
+        <div class="form-actions">
+          <button class="btn-outline" onclick="CreatePage.cancel()">Cancel</button>
+          <button class="btn-primary" onclick="CreatePage.save()">Save Set</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- STATS -->
+    <section class="page" id="page-stats">
+      <div class="page-header">
+        <h1 class="page-title">Progress</h1>
+      </div>
+      <div class="stat-grid">
+        <div class="stat-card"><span class="stat-label">Total Sets</span><span class="stat-value" id="stats-sets">0</span></div>
+        <div class="stat-card"><span class="stat-label">Total Cards</span><span class="stat-value" id="stats-cards">0</span></div>
+        <div class="stat-card"><span class="stat-label">Sessions</span><span class="stat-value" id="stats-sessions">0</span></div>
+        <div class="stat-card"><span class="stat-label">Best Streak</span><span class="stat-value" id="stats-best-streak">0d</span></div>
+      </div>
+      <div class="section-block">
+        <h2 class="section-title">Set Breakdown</h2>
+        <div class="stats-set-list" id="stats-set-list"></div>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- MODAL -->
+  <div class="modal-overlay hidden" id="modal-delete">
+    <div class="modal">
+      <h3 class="modal-title">Delete Set</h3>
+      <p class="modal-body" id="modal-delete-body">Are you sure you want to delete this set?</p>
+      <div class="modal-actions">
+        <button class="btn-outline" onclick="Modal.close('modal-delete')">Cancel</button>
+        <button class="btn-danger" id="modal-delete-confirm">Delete</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- TOAST -->
+  <div class="toast hidden" id="toast"></div>
+
+<script>
+/* ============================================
+   QUIZLY — DATABASE LAYER (db.js)
+   All persistence via localStorage.
+   Schema versioning + migration support.
+   ============================================ */
+
+const DB = (() => {
+
+  const SCHEMA_VERSION = 2;
+  const KEYS = {
+    VERSION:  'quizly_schema_version',
+    SETS:     'quizly_sets',
+    PROGRESS: 'quizly_progress',
+    SESSIONS: 'quizly_sessions',
+    META:     'quizly_meta',
+  };
+
+  /* ---- Internal helpers ---- */
+
+  function read(key) {
+    try {
+      const raw = localStorage.getItem(key);
+      return raw ? JSON.parse(raw) : null;
+    } catch (e) {
+      console.error('[DB] read error', key, e);
+      return null;
+    }
+  }
+
+  function write(key, value) {
+    try {
+      localStorage.setItem(key, JSON.stringify(value));
+      return true;
+    } catch (e) {
+      console.error('[DB] write error', key, e);
+      return false;
+    }
+  }
+
+  function uuid() {
+    return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, c => {
+      const r = (Math.random() * 16) | 0;
+      return (c === 'x' ? r : (r & 0x3) | 0x8).toString(16);
+    });
+  }
+
+  function now() {
+    return new Date().toISOString();
+  }
+
+  function todayStr() {
+    return new Date().toISOString().slice(0, 10);
+  }
+
+  /* ---- Schema init & migration ---- */
+
+  function init() {
+    const version = read(KEYS.VERSION);
+    if (!version) {
+      // Fresh install
+      write(KEYS.VERSION, SCHEMA_VERSION);
+      write(KEYS.SETS, {});
+      write(KEYS.PROGRESS, {});
+      write(KEYS.SESSIONS, []);
+      write(KEYS.META, {
+        createdAt: now(),
+        streak: 0,
+        bestStreak: 0,
+        lastStudyDate: null,
+        totalCardsStudied: 0,
+      });
+      _seedDemoData();
+      return;
+    }
+    if (version < SCHEMA_VERSION) {
+      _migrate(version);
+    }
+  }
+
+  function _migrate(fromVersion) {
+    // v1 -> v2: add description field to sets
+    if (fromVersion < 2) {
+      const sets = read(KEYS.SETS) || {};
+      Object.values(sets).forEach(s => {
+        if (s.description === undefined) s.description = '';
+      });
+      write(KEYS.SETS, sets);
+    }
+    write(KEYS.VERSION, SCHEMA_VERSION);
+  }
+
+  function _seedDemoData() {
+    const demoSets = [
+      {
+        title: 'Biology — Cell Structure',
+        subject: 'Biology',
+        description: 'Core organelles and their functions.',
+        cards: [
+          { term: 'Mitochondria',         definition: 'Organelle that generates ATP through cellular respiration. Known as the powerhouse of the cell.' },
+          { term: 'Nucleus',              definition: 'Control center of the cell; contains DNA and directs cellular activities.' },
+          { term: 'Ribosome',             definition: 'Site of protein synthesis; reads mRNA and assembles amino acid chains.' },
+          { term: 'Cell Membrane',        definition: 'Semi-permeable lipid bilayer that surrounds the cell and regulates what enters and exits.' },
+          { term: 'Chloroplast',          definition: 'Organelle in plant cells where photosynthesis occurs; contains chlorophyll.' },
+          { term: 'Endoplasmic Reticulum',definition: 'Network of membranes involved in protein (rough ER) and lipid (smooth ER) synthesis.' },
+          { term: 'Golgi Apparatus',      definition: 'Packages and exports proteins and lipids produced by the ER; the cell\'s post office.' },
+          { term: 'Lysosome',             definition: 'Contains digestive enzymes to break down waste materials and cellular debris.' },
+        ]
+      },
+      {
+        title: 'U.S. History — WWII',
+        subject: 'History',
+        description: 'Key events and terms from the World War II era.',
+        cards: [
+          { term: 'Pearl Harbor',      definition: 'December 7, 1941 surprise attack by Japan on the U.S. naval base; brought the U.S. into WWII.' },
+          { term: 'D-Day',             definition: 'June 6, 1944 Allied invasion of Normandy, France; the largest seaborne invasion in history.' },
+          { term: 'Manhattan Project', definition: 'Secret U.S.-led program to develop the first nuclear weapons during WWII.' },
+          { term: 'Lend-Lease Act',    definition: '1941 law allowing the U.S. to supply Allied nations with war materials before entering the war.' },
+          { term: 'VE Day',            definition: 'May 8, 1945 — Victory in Europe Day, marking the end of WWII in the European theater.' },
+          { term: 'VJ Day',            definition: 'September 2, 1945 — Victory over Japan, marking the formal end of WWII.' },
+        ]
+      },
+    ];
+    demoSets.forEach(s => Sets.create(s.title, s.subject, s.description, s.cards));
+  }
+
+  /* ---- SETS CRUD ---- */
+
+  const Sets = {
+    all() {
+      return read(KEYS.SETS) || {};
+    },
+
+    list() {
+      const sets = this.all();
+      return Object.values(sets).sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
+    },
+
+    get(id) {
+      return (read(KEYS.SETS) || {})[id] || null;
+    },
+
+    create(title, subject, description, cards) {
+      const sets = this.all();
+      const id = uuid();
+      const ts = now();
+      const setObj = {
+        id,
+        title:       title.trim(),
+        subject:     subject || 'General',
+        description: (description || '').trim(),
+        cards:       cards.map((c, i) => ({
+          id:         uuid(),
+          order:      i,
+          term:       c.term.trim(),
+          definition: c.definition.trim(),
+          createdAt:  ts,
+        })),
+        createdAt: ts,
+        updatedAt: ts,
+      };
+      sets[id] = setObj;
+      write(KEYS.SETS, sets);
+      return setObj;
+    },
+
+    update(id, title, subject, description, cards) {
+      const sets = this.all();
+      if (!sets[id]) return null;
+      const ts = now();
+      sets[id].title       = title.trim();
+      sets[id].subject     = subject || 'General';
+      sets[id].description = (description || '').trim();
+      sets[id].updatedAt   = ts;
+      // Merge existing card IDs where possible, assign new ones otherwise
+      const oldCards = sets[id].cards;
+      sets[id].cards = cards.map((c, i) => {
+        const existing = oldCards.find(old => old.id === c.id);
+        return {
+          id:         existing ? existing.id : uuid(),
+          order:      i,
+          term:       c.term.trim(),
+          definition: c.definition.trim(),
+          createdAt:  existing ? existing.createdAt : ts,
+        };
+      });
+      write(KEYS.SETS, sets);
+      return sets[id];
+    },
+
+    delete(id) {
+      const sets = this.all();
+      if (!sets[id]) return false;
+      delete sets[id];
+      write(KEYS.SETS, sets);
+      // Clean up progress for this set
+      const progress = read(KEYS.PROGRESS) || {};
+      delete progress[id];
+      write(KEYS.PROGRESS, progress);
+      return true;
+    },
+
+    count() {
+      return Object.keys(this.all()).length;
+    },
+
+    totalCards() {
+      return Object.values(this.all()).reduce((acc, s) => acc + s.cards.length, 0);
+    },
+  };
+
+  /* ---- PROGRESS ---- */
+  // Progress schema per set:
+  // { setId: { cardId: { correct, incorrect, lastSeen, mastered }, sessionAccuracy: [] } }
+
+  const Progress = {
+    forSet(setId) {
+      const all = read(KEYS.PROGRESS) || {};
+      return all[setId] || { cards: {}, sessionAccuracy: [] };
+    },
+
+    _save(setId, data) {
+      const all = read(KEYS.PROGRESS) || {};
+      all[setId] = data;
+      write(KEYS.PROGRESS, all);
+    },
+
+    recordCard(setId, cardId, correct) {
+      const p = this.forSet(setId);
+      if (!p.cards) p.cards = {};
+      if (!p.cards[cardId]) p.cards[cardId] = { correct: 0, incorrect: 0, lastSeen: null, mastered: false };
+      const c = p.cards[cardId];
+      if (correct) c.correct++; else c.incorrect++;
+      c.lastSeen = now();
+      // Mastered = 3+ correct with accuracy >= 80%
+      const total = c.correct + c.incorrect;
+      c.mastered = (c.correct >= 3) && (c.correct / total >= 0.8);
+      this._save(setId, p);
+      // Update global meta
+      Meta.incrementCardsStudied();
+    },
+
+    recordSession(setId, correct, total) {
+      const p = this.forSet(setId);
+      if (!p.sessionAccuracy) p.sessionAccuracy = [];
+      p.sessionAccuracy.push({
+        date: todayStr(),
+        correct,
+        total,
+        pct: total > 0 ? Math.round((correct / total) * 100) : 0,
+      });
+      // Keep last 20 sessions per set
+      if (p.sessionAccuracy.length > 20) p.sessionAccuracy = p.sessionAccuracy.slice(-20);
+      this._save(setId, p);
+    },
+
+    masteryForSet(setId) {
+      const set = Sets.get(setId);
+      if (!set || set.cards.length === 0) return 0;
+      const p = this.forSet(setId);
+      if (!p.cards) return 0;
+      const mastered = set.cards.filter(c => p.cards[c.id]?.mastered).length;
+      return Math.round((mastered / set.cards.length) * 100);
+    },
+
+    accuracyForSet(setId) {
+      const p = this.forSet(setId);
+      if (!p.sessionAccuracy || p.sessionAccuracy.length === 0) return null;
+      const last = p.sessionAccuracy.slice(-5);
+      const avg = last.reduce((a, s) => a + s.pct, 0) / last.length;
+      return Math.round(avg);
+    },
+
+    globalAccuracy() {
+      const all = read(KEYS.PROGRESS) || {};
+      let total = 0, count = 0;
+      Object.values(all).forEach(p => {
+        if (p.sessionAccuracy && p.sessionAccuracy.length) {
+          p.sessionAccuracy.slice(-5).forEach(s => { total += s.pct; count++; });
+        }
+      });
+      return count > 0 ? Math.round(total / count) : null;
+    },
+  };
+
+  /* ---- SESSIONS ---- */
+
+  const Sessions = {
+    all() {
+      return read(KEYS.SESSIONS) || [];
+    },
+
+    log(setId, mode, correct, total, durationMs) {
+      const sessions = this.all();
+      sessions.push({
+        id:         uuid(),
+        setId,
+        mode,
+        correct,
+        total,
+        durationMs,
+        date:       todayStr(),
+        timestamp:  now(),
+      });
+      // Keep last 200 sessions
+      if (sessions.length > 200) sessions.splice(0, sessions.length - 200);
+      write(KEYS.SESSIONS, sessions);
+    },
+
+    count() {
+      return this.all().length;
+    },
+
+    forSet(setId) {
+      return this.all().filter(s => s.setId === setId);
+    },
+  };
+
+  /* ---- META (streak, global stats) ---- */
+
+  const Meta = {
+    get() {
+      return read(KEYS.META) || {
+        streak: 0, bestStreak: 0, lastStudyDate: null, totalCardsStudied: 0,
+      };
+    },
+
+    _save(m) { write(KEYS.META, m); },
+
+    incrementCardsStudied() {
+      const m = this.get();
+      m.totalCardsStudied = (m.totalCardsStudied || 0) + 1;
+      this._save(m);
+    },
+
+    recordStudyDay() {
+      const m = this.get();
+      const today = todayStr();
+      if (m.lastStudyDate === today) return; // already counted today
+      const yesterday = new Date(Date.now() - 86400000).toISOString().slice(0, 10);
+      if (m.lastStudyDate === yesterday) {
+        m.streak = (m.streak || 0) + 1;
+      } else if (m.lastStudyDate !== today) {
+        m.streak = 1;
+      }
+      m.bestStreak = Math.max(m.streak, m.bestStreak || 0);
+      m.lastStudyDate = today;
+      this._save(m);
+    },
+  };
+
+  /* ---- Public API ---- */
+  return { init, Sets, Progress, Sessions, Meta, _uuid: uuid };
+
+})();
+/* ============================================
+   QUIZLY — APPLICATION LAYER (app.js)
+   Page controllers, routing, UI logic.
+   ============================================ */
+
+/* ============================================
+   UTILITIES
+   ============================================ */
+
+const Utils = {
+  shuffle(arr) {
+    const a = [...arr];
+    for (let i = a.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [a[i], a[j]] = [a[j], a[i]];
+    }
+    return a;
+  },
+
+  pct(correct, total) {
+    if (!total) return 0;
+    return Math.round((correct / total) * 100);
+  },
+
+  grade(pct) {
+    if (pct >= 90) return 'Excellent';
+    if (pct >= 75) return 'Great job';
+    if (pct >= 60) return 'Good effort';
+    if (pct >= 40) return 'Keep practicing';
+    return 'Needs work';
+  },
+
+  // Build multiple-choice options for a card from a set
+  buildOptions(cards, correctCard, field, count = 4) {
+    const correct = correctCard[field];
+    const pool = cards
+      .filter(c => c.id !== correctCard.id)
+      .map(c => c[field]);
+    const distractors = Utils.shuffle(pool).slice(0, count - 1);
+    return Utils.shuffle([correct, ...distractors]);
+  },
+
+  formatDuration(ms) {
+    if (ms < 60000) return Math.round(ms / 1000) + 's';
+    return Math.round(ms / 60000) + 'm ' + Math.round((ms % 60000) / 1000) + 's';
+  },
+};
+
+/* ============================================
+   TOAST
+   ============================================ */
+
+const Toast = {
+  _timer: null,
+  show(msg, type = '', duration = 2400) {
+    const el = document.getElementById('toast');
+    el.textContent = msg;
+    el.className = 'toast' + (type ? ' ' + type : '');
+    clearTimeout(this._timer);
+    this._timer = setTimeout(() => { el.className = 'toast hidden'; }, duration);
+  },
+};
+
+/* ============================================
+   MODAL
+   ============================================ */
+
+const Modal = {
+  close(id) {
+    document.getElementById(id).classList.add('hidden');
+  },
+  open(id) {
+    document.getElementById(id).classList.remove('hidden');
+  },
+};
+
+/* ============================================
+   APP ROUTER
+   ============================================ */
+
+const App = {
+  currentPage: 'home',
+  // The set being studied (shared across study pages)
+  activeSetId: null,
+
+  init() {
+    DB.init();
+    this._bindNav();
+    this.navigate('home');
+    this._updateStreak();
+  },
+
+  _bindNav() {
+    document.querySelectorAll('.nav-item[data-page]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        this.navigate(btn.dataset.page);
+      });
+    });
+  },
+
+  navigate(page, setId) {
+    // Update active set if provided
+    if (setId !== undefined) this.activeSetId = setId;
+
+    // Hide all pages
+    document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+    document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+
+    // Show target page
+    const pageEl = document.getElementById('page-' + page);
+    if (!pageEl) return;
+    pageEl.classList.add('active');
+
+    // Highlight nav
+    const navEl = document.querySelector(`.nav-item[data-page="${page}"]`);
+    if (navEl) navEl.classList.add('active');
+
+    this.currentPage = page;
+
+    // Init page
+    switch (page) {
+      case 'home':       HomePage.init();       break;
+      case 'sets':       SetsPage.init();       break;
+      case 'flashcards': FlashcardPage.init();  break;
+      case 'learn':      LearnPage.init();      break;
+      case 'quiz':       QuizPage.init();       break;
+      case 'match':      MatchPage.init();      break;
+      case 'create':     CreatePage.init();     break;
+      case 'stats':      StatsPage.init();      break;
+    }
+  },
+
+  _updateStreak() {
+    const meta = DB.Meta.get();
+    const streak = meta.streak || 0;
+    document.getElementById('streak-count').textContent = streak;
+  },
+
+  // Navigate to study mode with a specific set
+  studySet(setId, mode) {
+    this.activeSetId = setId;
+    this.navigate(mode, setId);
+  },
+};
+
+/* ============================================
+   HOME PAGE
+   ============================================ */
+
+const HomePage = {
+  init() {
+    const hour = new Date().getHours();
+    const greeting = hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening';
+    document.getElementById('home-greeting').textContent = greeting;
+
+    const sets    = DB.Sets.list();
+    const meta    = DB.Meta.get();
+    const acc     = DB.Progress.globalAccuracy();
+
+    document.getElementById('stat-sets').textContent    = sets.length;
+    document.getElementById('stat-studied').textContent = meta.totalCardsStudied || 0;
+    document.getElementById('stat-accuracy').textContent = acc !== null ? acc + '%' : '-';
+    document.getElementById('stat-streak').textContent  = (meta.streak || 0) + 'd';
+
+    const list = document.getElementById('home-set-list');
+    const empty = document.getElementById('home-empty');
+
+    if (sets.length === 0) {
+      list.innerHTML = '';
+      list.appendChild(empty);
+      empty.classList.remove('hidden');
+      return;
+    }
+
+    empty.classList.add('hidden');
+    list.innerHTML = '';
+    sets.slice(0, 6).forEach(s => {
+      list.appendChild(this._renderSetCard(s));
+    });
+  },
+
+  _renderSetCard(s) {
+    const mastery = DB.Progress.masteryForSet(s.id);
+    const div = document.createElement('div');
+    div.className = 'set-card';
+    div.innerHTML = `
+      <div class="set-card-body">
+        <div class="set-card-title">${_esc(s.title)}</div>
+        <div class="set-card-meta">
+          <span class="set-subject-badge">${_esc(s.subject)}</span>
+          <span>${s.cards.length} cards</span>
+          ${s.description ? `<span>${_esc(s.description)}</span>` : ''}
+        </div>
+      </div>
+      <div class="set-card-progress">
+        <div class="set-card-progress-bar">
+          <div class="set-card-progress-fill" style="width:${mastery}%"></div>
+        </div>
+        <div class="set-card-progress-label">${mastery}% mastered</div>
+      </div>
+      <div class="set-card-actions">
+        <button class="study-btn" onclick="App.studySet('${s.id}','flashcards')">Study</button>
+      </div>
+    `;
+    return div;
+  },
+};
+
+/* ============================================
+   SETS PAGE
+   ============================================ */
+
+const SetsPage = {
+  _all: [],
+
+  init() {
+    this._all = DB.Sets.list();
+    this._render(this._all);
+  },
+
+  filterSets(query) {
+    const q = query.toLowerCase().trim();
+    const filtered = q
+      ? this._all.filter(s =>
+          s.title.toLowerCase().includes(q) ||
+          s.subject.toLowerCase().includes(q) ||
+          (s.description || '').toLowerCase().includes(q)
+        )
+      : this._all;
+    this._render(filtered);
+  },
+
+  _render(sets) {
+    const list = document.getElementById('sets-list');
+    list.innerHTML = '';
+    if (sets.length === 0) {
+      list.innerHTML = '<div class="empty-state"><p>No sets found.</p></div>';
+      return;
+    }
+    sets.forEach(s => list.appendChild(this._card(s)));
+  },
+
+  _card(s) {
+    const mastery = DB.Progress.masteryForSet(s.id);
+    const acc     = DB.Progress.accuracyForSet(s.id);
+    const div = document.createElement('div');
+    div.className = 'set-card';
+    div.innerHTML = `
+      <div class="set-card-body">
+        <div class="set-card-title">${_esc(s.title)}</div>
+        <div class="set-card-meta">
+          <span class="set-subject-badge">${_esc(s.subject)}</span>
+          <span>${s.cards.length} cards</span>
+          ${acc !== null ? `<span>Avg. ${acc}% accuracy</span>` : ''}
+        </div>
+      </div>
+      <div class="set-card-progress">
+        <div class="set-card-progress-bar">
+          <div class="set-card-progress-fill" style="width:${mastery}%"></div>
+        </div>
+        <div class="set-card-progress-label">${mastery}% mastered</div>
+      </div>
+      <div class="set-card-actions">
+        <button class="icon-btn" title="Edit" onclick="CreatePage.editSet('${s.id}')">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+        </button>
+        <button class="icon-btn danger" title="Delete" onclick="SetsPage.confirmDelete('${s.id}','${_esc(s.title)}')">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 011-1h4a1 1 0 011 1v2"/></svg>
+        </button>
+        <button class="study-btn" onclick="App.studySet('${s.id}','flashcards')">Study</button>
+      </div>
+    `;
+    return div;
+  },
+
+  confirmDelete(id, title) {
+    document.getElementById('modal-delete-body').textContent =
+      `Delete "${title}"? This cannot be undone.`;
+    const btn = document.getElementById('modal-delete-confirm');
+    btn.onclick = () => {
+      DB.Sets.delete(id);
+      Modal.close('modal-delete');
+      Toast.show('Set deleted.', 'error');
+      this.init();
+    };
+    Modal.open('modal-delete');
+  },
+};
+
+/* ============================================
+   FLASHCARD PAGE
+   ============================================ */
+
+const FlashcardPage = {
+  _cards:    [],
+  _index:    0,
+  _flipped:  false,
+  _correct:  0,
+  _wrong:    0,
+  _setId:    null,
+  _startMs:  0,
+
+  init() {
+    const setId = App.activeSetId;
+    if (!setId) { App.navigate('sets'); return; }
+    const set = DB.Sets.get(setId);
+    if (!set || set.cards.length === 0) { App.navigate('sets'); return; }
+
+    this._setId   = setId;
+    this._cards   = [...set.cards];
+    this._index   = 0;
+    this._flipped = false;
+    this._correct = 0;
+    this._wrong   = 0;
+    this._startMs = Date.now();
+
+    document.getElementById('fc-title').textContent = set.title;
+    document.getElementById('fc-set-meta').textContent =
+      set.subject + ' — ' + set.cards.length + ' cards';
+
+    DB.Meta.recordStudyDay();
+    this._render();
+  },
+
+  _render() {
+    const card = this._cards[this._index];
+    document.getElementById('fc-term-text').textContent = card.term;
+    document.getElementById('fc-def-text').textContent  = card.definition;
+    document.getElementById('fc-inner').classList.remove('flipped');
+    this._flipped = false;
+
+    const total = this._cards.length;
+    const pct   = Math.round(((this._index + 1) / total) * 100);
+    document.getElementById('fc-progress-fill').style.width = pct + '%';
+    document.getElementById('fc-progress-text').textContent =
+      (this._index + 1) + ' / ' + total;
+
+    document.getElementById('fc-stat-correct').textContent = this._correct + ' correct';
+    document.getElementById('fc-stat-wrong').textContent   = this._wrong + ' learning';
+  },
+
+  flip() {
+    this._flipped = !this._flipped;
+    document.getElementById('fc-inner').classList.toggle('flipped', this._flipped);
+  },
+
+  next() {
+    if (this._index < this._cards.length - 1) {
+      this._index++;
+      this._render();
+    }
+  },
+
+  prev() {
+    if (this._index > 0) {
+      this._index--;
+      this._render();
+    }
+  },
+
+  mark(knew) {
+    const card = this._cards[this._index];
+    if (knew) this._correct++; else this._wrong++;
+    DB.Progress.recordCard(this._setId, card.id, knew);
+
+    if (this._index < this._cards.length - 1) {
+      this._index++;
+      this._render();
+    } else {
+      this._finish();
+    }
+  },
+
+  shuffle() {
+    this._cards = Utils.shuffle(this._cards);
+    this._index = 0;
+    this._render();
+    Toast.show('Cards shuffled.');
+  },
+
+  restart() {
+    this._index   = 0;
+    this._correct = 0;
+    this._wrong   = 0;
+    this._startMs = Date.now();
+    this._render();
+  },
+
+  _finish() {
+    const dur = Date.now() - this._startMs;
+    DB.Progress.recordSession(this._setId, this._correct, this._cards.length);
+    DB.Sessions.log(this._setId, 'flashcards', this._correct, this._cards.length, dur);
+    const pct = Utils.pct(this._correct, this._cards.length);
+    Toast.show(
+      Utils.grade(pct) + ' — ' + this._correct + '/' + this._cards.length + ' correct (' + pct + '%)',
+      pct >= 70 ? 'success' : '',
+      3000
+    );
+  },
+};
+
+/* ============================================
+   LEARN PAGE
+   ============================================ */
+
+const LearnPage = {
+  _queue:    [],
+  _index:    0,
+  _correct:  0,
+  _wrong:    0,
+  _answered: false,
+  _setId:    null,
+  _startMs:  0,
+  _allCards: [],
+
+  init() {
+    const setId = App.activeSetId;
+    if (!setId) { App.navigate('sets'); return; }
+    const set = DB.Sets.get(setId);
+    if (!set || set.cards.length === 0) { App.navigate('sets'); return; }
+
+    this._setId    = setId;
+    this._allCards = set.cards;
+    this._startMs  = Date.now();
+
+    document.getElementById('learn-title').textContent = set.title;
+    document.getElementById('learn-sub').textContent   = set.subject;
+
+    document.getElementById('learn-result').classList.add('hidden');
+    document.getElementById('learn-card-wrap').classList.remove('hidden');
+
+    DB.Meta.recordStudyDay();
+    this.restart();
+  },
+
+  restart() {
+    // Prioritise cards that have been wrong more, then unseen
+    const p = DB.Progress.forSet(this._setId);
+    this._queue = Utils.shuffle(this._allCards).map(c => {
+      const stat = p.cards?.[c.id];
+      const weight = stat ? (stat.incorrect - stat.correct) : 0;
+      return { card: c, weight };
+    }).sort((a, b) => b.weight - a.weight).map(x => x.card);
+
+    this._index    = 0;
+    this._correct  = 0;
+    this._wrong    = 0;
+    this._answered = false;
+    this._startMs  = Date.now();
+
+    document.getElementById('learn-result').classList.add('hidden');
+    document.getElementById('learn-card-wrap').classList.remove('hidden');
+
+    this._render();
+  },
+
+  _render() {
+    const card    = this._queue[this._index];
+    const total   = this._queue.length;
+    const remain  = total - this._index;
+    const pct     = Math.round((this._index / total) * 100);
+
+    document.getElementById('learn-progress-fill').style.width  = pct + '%';
+    document.getElementById('learn-progress-text').textContent  = this._index + ' / ' + total;
+    document.getElementById('lsc-correct').textContent  = this._correct + ' correct';
+    document.getElementById('lsc-wrong').textContent    = this._wrong + ' incorrect';
+    document.getElementById('lsc-remain').textContent   = remain + ' remaining';
+
+    document.getElementById('learn-question').textContent = card.definition;
+    document.getElementById('learn-feedback').className   = 'quiz-feedback hidden';
+    document.getElementById('learn-next-btn').classList.add('hidden');
+    this._answered = false;
+
+    const options = Utils.buildOptions(this._allCards, card, 'term', Math.min(4, this._allCards.length));
+    const container = document.getElementById('learn-options');
+    container.innerHTML = '';
+    const keys = ['A', 'B', 'C', 'D'];
+    options.forEach((opt, i) => {
+      const btn = document.createElement('button');
+      btn.className = 'quiz-option';
+      btn.innerHTML = `<span class="opt-key">${keys[i]}</span>${_esc(opt)}`;
+      btn.addEventListener('click', () => this._select(opt, card.term));
+      container.appendChild(btn);
+    });
+  },
+
+  _select(chosen, correct) {
+    if (this._answered) return;
+    this._answered = true;
+    const isCorrect = chosen === correct;
+    if (isCorrect) this._correct++; else this._wrong++;
+    DB.Progress.recordCard(this._setId, this._queue[this._index].id, isCorrect);
+
+    // Style options
+    document.querySelectorAll('#learn-options .quiz-option').forEach(btn => {
+      btn.classList.add('disabled');
+      const text = btn.textContent.slice(1); // strip key letter
+      if (text === correct)      btn.classList.add('correct');
+      else if (text === chosen)  btn.classList.add('wrong');
+    });
+
+    const fb = document.getElementById('learn-feedback');
+    fb.className = 'quiz-feedback ' + (isCorrect ? 'correct' : 'wrong');
+    fb.textContent = isCorrect
+      ? 'Correct!'
+      : 'The correct answer was: ' + correct;
+
+    document.getElementById('learn-next-btn').classList.remove('hidden');
+  },
+
+  next() {
+    this._index++;
+    if (this._index >= this._queue.length) {
+      this._finish();
+    } else {
+      this._render();
+    }
+  },
+
+  _finish() {
+    const dur = Date.now() - this._startMs;
+    const pct = Utils.pct(this._correct, this._queue.length);
+    DB.Progress.recordSession(this._setId, this._correct, this._queue.length);
+    DB.Sessions.log(this._setId, 'learn', this._correct, this._queue.length, dur);
+
+    document.getElementById('learn-card-wrap').classList.add('hidden');
+    document.getElementById('learn-result').classList.remove('hidden');
+    document.getElementById('learn-result-sub').textContent =
+      pct + '% — ' + Utils.grade(pct) + ' — ' + Utils.formatDuration(dur);
+
+    const stats = document.getElementById('learn-result-stats');
+    stats.innerHTML = `
+      <div class="result-stat-card correct">
+        <span class="result-stat-val">${this._correct}</span>Correct
+      </div>
+      <div class="result-stat-card wrong">
+        <span class="result-stat-val">${this._wrong}</span>Incorrect
+      </div>
+    `;
+  },
+};
+
+/* ============================================
+   QUIZ PAGE
+   ============================================ */
+
+const QuizPage = {
+  _questions: [],
+  _answers:   [],
+  _index:     0,
+  _setId:     null,
+  _startMs:   0,
+  _allCards:  [],
+
+  init() {
+    const setId = App.activeSetId;
+    if (!setId) { App.navigate('sets'); return; }
+    const set = DB.Sets.get(setId);
+    if (!set || set.cards.length === 0) { App.navigate('sets'); return; }
+
+    this._setId    = setId;
+    this._allCards = set.cards;
+
+    document.getElementById('quiz-title').textContent = set.title;
+    document.getElementById('quiz-sub').textContent   = set.subject;
+    document.getElementById('quiz-result').classList.add('hidden');
+    document.getElementById('quiz-active-section').classList.remove('hidden');
+
+    DB.Meta.recordStudyDay();
+    this.restart();
+  },
+
+  restart() {
+    const cards = Utils.shuffle(this._allCards).slice(0, Math.min(10, this._allCards.length));
+    this._questions = cards.map(c => ({
+      card:    c,
+      prompt:  c.term,
+      correct: c.definition,
+      options: Utils.buildOptions(this._allCards, c, 'definition', Math.min(4, this._allCards.length)),
+    }));
+    this._answers = new Array(this._questions.length).fill(null);
+    this._index   = 0;
+    this._startMs = Date.now();
+
+    document.getElementById('quiz-result').classList.add('hidden');
+    document.getElementById('quiz-active-section').classList.remove('hidden');
+    this._render();
+  },
+
+  _render() {
+    const q     = this._questions[this._index];
+    const total = this._questions.length;
+    const pct   = Math.round(((this._index + 1) / total) * 100);
+    const answered = this._answers[this._index];
+
+    document.getElementById('quiz-progress-fill').style.width   = pct + '%';
+    document.getElementById('quiz-progress-text').textContent   = (this._index + 1) + ' / ' + total;
+    document.getElementById('quiz-q-label').textContent         = 'Question ' + (this._index + 1);
+    document.getElementById('quiz-question').textContent        = q.prompt;
+
+    const container = document.getElementById('quiz-options');
+    container.innerHTML = '';
+    const keys = ['A', 'B', 'C', 'D'];
+    q.options.forEach((opt, i) => {
+      const btn = document.createElement('button');
+      btn.className = 'quiz-option' + (answered !== null ? ' disabled' : '');
+      btn.innerHTML = `<span class="opt-key">${keys[i]}</span>${_esc(opt)}`;
+      if (answered !== null) {
+        if (opt === q.correct)               btn.classList.add('correct');
+        else if (opt === answered && opt !== q.correct) btn.classList.add('wrong');
+      }
+      btn.addEventListener('click', () => this._select(opt));
+      container.appendChild(btn);
+    });
+
+    const fb = document.getElementById('quiz-feedback');
+    if (answered !== null) {
+      const isCorrect = answered === q.correct;
+      fb.className = 'quiz-feedback ' + (isCorrect ? 'correct' : 'wrong');
+      fb.textContent = isCorrect
+        ? 'Correct!'
+        : 'The correct answer was: ' + q.correct;
+    } else {
+      fb.className = 'quiz-feedback hidden';
+      fb.textContent = '';
+    }
+
+    const nextBtn = document.getElementById('quiz-next-btn');
+    nextBtn.textContent = this._index < total - 1 ? 'Next' : 'Finish';
+  },
+
+  _select(chosen) {
+    if (this._answers[this._index] !== null) return;
+    this._answers[this._index] = chosen;
+    DB.Progress.recordCard(
+      this._setId,
+      this._questions[this._index].card.id,
+      chosen === this._questions[this._index].correct
+    );
+    this._render();
+  },
+
+  next() {
+    if (this._index < this._questions.length - 1) {
+      this._index++;
+      this._render();
+    } else {
+      this._finish();
+    }
+  },
+
+  prev() {
+    if (this._index > 0) {
+      this._index--;
+      this._render();
+    }
+  },
+
+  _finish() {
+    const dur     = Date.now() - this._startMs;
+    const correct = this._answers.filter((a, i) => a === this._questions[i].correct).length;
+    const total   = this._questions.length;
+    const pct     = Utils.pct(correct, total);
+
+    DB.Progress.recordSession(this._setId, correct, total);
+    DB.Sessions.log(this._setId, 'quiz', correct, total, dur);
+
+    document.getElementById('quiz-active-section').classList.add('hidden');
+    document.getElementById('quiz-result').classList.remove('hidden');
+    document.getElementById('quiz-result-title').textContent = 'Quiz Complete — ' + pct + '%';
+    document.getElementById('quiz-result-sub').textContent   =
+      Utils.grade(pct) + ' — ' + Utils.formatDuration(dur);
+
+    const stats = document.getElementById('quiz-result-stats');
+    stats.innerHTML = `
+      <div class="result-stat-card correct">
+        <span class="result-stat-val">${correct}</span>Correct
+      </div>
+      <div class="result-stat-card wrong">
+        <span class="result-stat-val">${total - correct}</span>Incorrect
+      </div>
+    `;
+  },
+};
+
+/* ============================================
+   MATCH GAME PAGE
+   ============================================ */
+
+const MatchPage = {
+  _selected:  null,
+  _matched:   0,
+  _total:     0,
+  _timerInt:  null,
+  _secs:      0,
+  _started:   false,
+  _tiles:     [],
+  _setId:     null,
+
+  init() {
+    const setId = App.activeSetId;
+    if (!setId) { App.navigate('sets'); return; }
+    const set = DB.Sets.get(setId);
+    if (!set || set.cards.length === 0) { App.navigate('sets'); return; }
+    this._setId = setId;
+    this._set   = set;
+    DB.Meta.recordStudyDay();
+    this._build();
+  },
+
+  _build() {
+    clearInterval(this._timerInt);
+    this._selected = null;
+    this._matched  = 0;
+    this._secs     = 0;
+    this._started  = false;
+    document.getElementById('match-timer-display').textContent = '0.0s';
+    document.getElementById('match-result').classList.add('hidden');
+
+    // Pick up to 6 pairs
+    const cards = Utils.shuffle(this._set.cards).slice(0, 6);
+    this._total = cards.length;
+
+    const tiles = [];
+    cards.forEach((c, i) => {
+      tiles.push({ id: 'term-' + i,  pairId: 'def-' + i,  text: c.term,       type: 'term' });
+      tiles.push({ id: 'def-'  + i,  pairId: 'term-' + i, text: c.definition, type: 'def'  });
+    });
+    this._tiles = Utils.shuffle(tiles);
+
+    const grid = document.getElementById('match-grid');
+    grid.innerHTML = '';
+    this._tiles.forEach(t => {
+      const div = document.createElement('div');
+      div.className   = 'match-tile';
+      div.id          = 'mt-' + t.id;
+      div.textContent = t.text;
+      div.dataset.id     = t.id;
+      div.dataset.pairid = t.pairId;
+      div.addEventListener('click', () => this._click(t.id, t.pairId, div));
+      grid.appendChild(div);
+    });
+  },
+
+  _startTimer() {
+    if (this._started) return;
+    this._started = true;
+    this._timerInt = setInterval(() => {
+      this._secs += 0.1;
+      document.getElementById('match-timer-display').textContent = this._secs.toFixed(1) + 's';
+    }, 100);
+  },
+
+  _click(id, pairId, el) {
+    if (el.classList.contains('matched')) return;
+    this._startTimer();
+
+    if (this._selected === null) {
+      this._selected = { id, pairId, el };
+      el.classList.add('selected');
+      return;
+    }
+
+    const prev = this._selected;
+    this._selected = null;
+
+    if (prev.id === id) {
+      // Clicked same tile — deselect
+      prev.el.classList.remove('selected');
+      return;
+    }
+
+    if (prev.pairId === id) {
+      // Match
+      prev.el.classList.remove('selected');
+      prev.el.classList.add('matched');
+      el.classList.add('matched');
+      this._matched++;
+      DB.Progress.recordCard(this._setId, this._tiles.find(t => t.id === id)?.cardId, true);
+
+      if (this._matched === this._total) {
+        this._finish();
+      }
+    } else {
+      // No match
+      prev.el.classList.add('shake');
+      el.classList.add('shake');
+      prev.el.classList.remove('selected');
+      setTimeout(() => {
+        prev.el.classList.remove('shake');
+        el.classList.remove('shake');
+      }, 300);
+    }
+  },
+
+  _finish() {
+    clearInterval(this._timerInt);
+    const time = this._secs.toFixed(1);
+    DB.Sessions.log(this._setId, 'match', this._total, this._total, Math.round(this._secs * 1000));
+
+    const result = document.getElementById('match-result');
+    result.classList.remove('hidden');
+    document.getElementById('match-result-sub').textContent =
+      'Finished in ' + time + 's with ' + this._total + ' pairs matched.';
+  },
+};
+
+/* ============================================
+   CREATE / EDIT PAGE
+   ============================================ */
+
+const CreatePage = {
+  _editId: null,
+  _rowCount: 0,
+
+  init() {
+    this._editId   = null;
+    this._rowCount = 0;
+    document.getElementById('create-title').textContent   = 'Create Set';
+    document.getElementById('edit-set-id').value          = '';
+    document.getElementById('new-set-title').value        = '';
+    document.getElementById('new-set-subject').value      = 'General';
+    document.getElementById('new-set-desc').value         = '';
+    document.getElementById('card-rows').innerHTML        = '';
+
+    // Start with 4 blank rows
+    this.addRow();
+    this.addRow();
+    this.addRow();
+    this.addRow();
+  },
+
+  editSet(id) {
+    const set = DB.Sets.get(id);
+    if (!set) return;
+    this._editId   = id;
+    this._rowCount = 0;
+
+    document.getElementById('create-title').textContent  = 'Edit Set';
+    document.getElementById('edit-set-id').value         = id;
+    document.getElementById('new-set-title').value       = set.title;
+    document.getElementById('new-set-subject').value     = set.subject;
+    document.getElementById('new-set-desc').value        = set.description || '';
+    document.getElementById('card-rows').innerHTML       = '';
+
+    set.cards.forEach(c => this.addRow(c));
+    if (set.cards.length < 2) this.addRow();
+
+    App.navigate('create');
+  },
+
+  addRow(card = null) {
+    this._rowCount++;
+    const n   = this._rowCount;
+    const row = document.createElement('div');
+    row.className    = 'card-row';
+    row.dataset.rowN = n;
+    row.innerHTML = `
+      <div class="card-row-header">
+        <span class="card-row-num">Card ${n}</span>
+        <button class="card-row-remove" title="Remove card" onclick="CreatePage.removeRow(this)">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+        </button>
+      </div>
+      <div class="card-inputs">
+        <textarea class="card-textarea" placeholder="Term" data-field="term">${card ? _esc(card.term) : ''}</textarea>
+        <textarea class="card-textarea" placeholder="Definition" data-field="def">${card ? _esc(card.definition) : ''}</textarea>
+      </div>
+    `;
+    if (card?.id) row.dataset.cardId = card.id;
+    document.getElementById('card-rows').appendChild(row);
+    this._updateCount();
+  },
+
+  removeRow(btn) {
+    const rows = document.querySelectorAll('#card-rows .card-row');
+    if (rows.length <= 1) { Toast.show('A set needs at least one card.'); return; }
+    btn.closest('.card-row').remove();
+    this._updateCount();
+  },
+
+  _updateCount() {
+    const n = document.querySelectorAll('#card-rows .card-row').length;
+    document.getElementById('card-count-label').textContent = n + (n === 1 ? ' card' : ' cards');
+  },
+
+  _collectCards() {
+    const rows = document.querySelectorAll('#card-rows .card-row');
+    const cards = [];
+    rows.forEach(row => {
+      const term = row.querySelector('[data-field="term"]')?.value.trim();
+      const def  = row.querySelector('[data-field="def"]')?.value.trim();
+      if (term || def) {
+        const obj = { term: term || '', definition: def || '' };
+        if (row.dataset.cardId) obj.id = row.dataset.cardId;
+        cards.push(obj);
+      }
+    });
+    return cards;
+  },
+
+  save() {
+    const title   = document.getElementById('new-set-title').value.trim();
+    const subject = document.getElementById('new-set-subject').value;
+    const desc    = document.getElementById('new-set-desc').value.trim();
+    const cards   = this._collectCards();
+
+    if (!title) { Toast.show('Please enter a title.', 'error'); return; }
+    const valid = cards.filter(c => c.term && c.definition);
+    if (valid.length === 0) {
+      Toast.show('Add at least one complete card (term and definition).', 'error');
+      return;
+    }
+
+    const editId = document.getElementById('edit-set-id').value;
+    let set;
+    if (editId) {
+      set = DB.Sets.update(editId, title, subject, desc, valid);
+      Toast.show('Set updated.', 'success');
+    } else {
+      set = DB.Sets.create(title, subject, desc, valid);
+      Toast.show('Set created.', 'success');
+    }
+
+    App.activeSetId = set.id;
+    App.navigate('flashcards');
+  },
+
+  cancel() {
+    App.navigate(App.activeSetId ? 'sets' : 'home');
+  },
+};
+
+/* ============================================
+   STATS PAGE
+   ============================================ */
+
+const StatsPage = {
+  init() {
+    const sets    = DB.Sets.list();
+    const meta    = DB.Meta.get();
+    const total   = DB.Sets.totalCards();
+    const sessions = DB.Sessions.count();
+
+    document.getElementById('stats-sets').textContent         = sets.length;
+    document.getElementById('stats-cards').textContent        = total;
+    document.getElementById('stats-sessions').textContent     = sessions;
+    document.getElementById('stats-best-streak').textContent  = (meta.bestStreak || 0) + 'd';
+
+    const list = document.getElementById('stats-set-list');
+    list.innerHTML = '';
+    if (sets.length === 0) {
+      list.innerHTML = '<div class="empty-state"><p>No data yet. Start studying to track progress.</p></div>';
+      return;
+    }
+
+    sets.forEach(s => {
+      const acc     = DB.Progress.accuracyForSet(s.id);
+      const mastery = DB.Progress.masteryForSet(s.id);
+      const sCount  = DB.Sessions.forSet(s.id).length;
+
+      const fillClass = acc === null ? 'low' : acc >= 75 ? 'good' : acc >= 50 ? 'mid' : 'low';
+      const fillPct   = acc !== null ? acc : 0;
+
+      const row = document.createElement('div');
+      row.className = 'stats-set-row';
+      row.innerHTML = `
+        <div class="stats-set-name">${_esc(s.title)}</div>
+        <div class="stats-set-detail">${s.cards.length} cards &bull; ${sCount} sessions &bull; ${mastery}% mastered</div>
+        <div class="accuracy-bar-wrap">
+          <div class="accuracy-bar">
+            <div class="accuracy-fill ${fillClass}" style="width:${fillPct}%"></div>
+          </div>
+          <div style="font-size:11px;color:var(--text-muted);margin-top:3px">
+            ${acc !== null ? acc + '% accuracy' : 'No data'}
+          </div>
+        </div>
+      `;
+      list.appendChild(row);
+    });
+  },
+};
+
+/* ============================================
+   GLOBAL HELPERS
+   ============================================ */
+
+// XSS-safe text insertion helper
+function _esc(str) {
+  if (!str) return '';
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+// Keyboard shortcuts
+document.addEventListener('keydown', e => {
+  const page = App.currentPage;
+  if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+
+  if (page === 'flashcards') {
+    if (e.key === 'ArrowRight' || e.key === 'ArrowDown') FlashcardPage.next();
+    if (e.key === 'ArrowLeft'  || e.key === 'ArrowUp')   FlashcardPage.prev();
+    if (e.key === ' ' || e.key === 'Enter')               FlashcardPage.flip();
+    if (e.key === '1') FlashcardPage.mark(true);
+    if (e.key === '2') FlashcardPage.mark(false);
+  }
+
+  if (page === 'learn' || page === 'quiz') {
+    const keys = { '1': 0, '2': 1, '3': 2, '4': 3 };
+    if (keys[e.key] !== undefined) {
+      const opts = document.querySelectorAll(
+        page === 'learn' ? '#learn-options .quiz-option' : '#quiz-options .quiz-option'
+      );
+      if (opts[keys[e.key]]) opts[keys[e.key]].click();
+    }
+  }
+});
+
+/* ============================================
+   BOOT
+   ============================================ */
+document.addEventListener('DOMContentLoaded', () => App.init());
+</script>
+</body>
+</html>

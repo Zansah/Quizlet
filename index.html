@@ -1283,6 +1283,90 @@ select.form-input { cursor: pointer; }
 @media (max-width: 700px) {
   .export-options { grid-template-columns: 1fr; }
 }
+
+/* ============================================
+   IMPORT MODAL
+   ============================================ */
+
+.import-textarea {
+  width: 100%;
+  height: 150px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: var(--text);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 12.5px;
+  line-height: 1.5;
+  white-space: pre;
+  overflow: auto;
+  resize: vertical;
+  outline: none;
+  margin-bottom: 8px;
+}
+
+.import-textarea:focus { border-color: var(--primary); }
+
+.import-file-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 12.5px;
+  color: var(--text-muted);
+  margin-bottom: 14px;
+}
+
+.import-file-row input[type="file"] { font-size: 12.5px; max-width: 100%; }
+
+.import-mode {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 18px;
+  margin-bottom: 6px;
+}
+
+.import-hint {
+  font-size: 12px;
+  color: var(--warn);
+  margin-bottom: 10px;
+}
+
+.import-status {
+  font-size: 12.5px;
+  font-weight: 600;
+  margin: 12px 0 8px;
+  color: var(--text-muted);
+}
+
+.import-status.ok   { color: var(--success); }
+.import-status.warn { color: var(--warn); }
+.import-status.bad  { color: var(--danger); }
+
+.import-preview-list {
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface-alt);
+  max-height: 150px;
+  overflow-y: auto;
+  margin-bottom: 18px;
+}
+
+.import-preview-list:empty { display: none; }
+
+.import-preview-row {
+  display: grid;
+  grid-template-columns: 1fr 2fr;
+  gap: 12px;
+  padding: 7px 12px;
+  font-size: 12.5px;
+  border-bottom: 1px solid var(--border);
+}
+
+.import-preview-row:last-child { border-bottom: none; }
+.import-preview-term { font-weight: 600; overflow-wrap: anywhere; }
+.import-preview-def  { color: var(--text-muted); overflow-wrap: anywhere; }
+.import-preview-more { padding: 7px 12px; font-size: 12px; color: var(--text-faint); }
   </style>
 </head>
 <body>
@@ -1365,7 +1449,10 @@ select.form-input { cursor: pointer; }
     <section class="page" id="page-sets">
       <div class="page-header">
         <h1 class="page-title">Study Sets</h1>
-        <button class="btn-primary" onclick="App.navigate('create')">New Set</button>
+        <div class="header-actions">
+          <button class="btn-outline" onclick="ImportModal.openFromSets()">Import</button>
+          <button class="btn-primary" onclick="App.navigate('create')">New Set</button>
+        </div>
       </div>
       <div class="search-bar-wrap">
         <input type="text" class="search-input" id="sets-search" placeholder="Search sets..." oninput="SetsPage.filterSets(this.value)" />
@@ -1529,6 +1616,9 @@ select.form-input { cursor: pointer; }
     <section class="page" id="page-create">
       <div class="page-header">
         <h1 class="page-title" id="create-title">Create Set</h1>
+        <div class="header-actions">
+          <button class="btn-outline" onclick="ImportModal.open()">Import</button>
+        </div>
       </div>
       <div class="create-form">
         <input type="hidden" id="edit-set-id" value="" />
@@ -1647,6 +1737,63 @@ select.form-input { cursor: pointer; }
         <button class="btn-outline" onclick="Modal.close('modal-export')">Close</button>
         <button class="btn-outline" id="export-download-btn" onclick="ExportModal.download()">Download</button>
         <button class="btn-primary" id="export-copy-btn" onclick="ExportModal.copy()">Copy text</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- IMPORT MODAL -->
+  <div class="modal-overlay hidden" id="modal-import" onclick="if (event.target === this) Modal.close('modal-import')">
+    <div class="modal modal-wide">
+      <h3 class="modal-title">Import cards</h3>
+      <p class="modal-body">Paste your terms and definitions below, or load a .txt / .csv file. Quoted fields (like the ones Export creates) are handled.</p>
+
+      <textarea class="import-textarea" id="import-text" wrap="off" spellcheck="false"
+                placeholder="Mitochondria&#9;Powerhouse of the cell&#10;Nucleus&#9;Control center of the cell"
+                oninput="ImportModal.refresh()"></textarea>
+      <div class="import-file-row">
+        <span>or</span>
+        <input type="file" id="import-file" accept=".txt,.csv,.tsv,text/plain,text/csv" onchange="ImportModal.loadFile(this)" />
+      </div>
+
+      <div class="export-options" onchange="ImportModal.refresh()">
+        <fieldset class="export-group">
+          <legend>Between term and definition</legend>
+          <div class="export-radio"><label><input type="radio" name="import-term-sep" value="auto" checked /> Auto-detect <span id="import-auto-label" class="card-count-label"></span></label></div>
+          <div class="export-radio"><label><input type="radio" name="import-term-sep" value="tab" /> Tab</label></div>
+          <div class="export-radio"><label><input type="radio" name="import-term-sep" value="comma" /> Comma</label></div>
+          <div class="export-radio">
+            <label><input type="radio" name="import-term-sep" value="custom" /> Custom</label>
+            <input type="text" class="export-custom" id="import-term-custom" placeholder="e.g. |" maxlength="10"
+                   onfocus="ImportModal.pickCustom('import-term-sep')"
+                   oninput="ImportModal.pickCustom('import-term-sep'); ImportModal.refresh()" />
+          </div>
+        </fieldset>
+
+        <fieldset class="export-group">
+          <legend>Between rows</legend>
+          <div class="export-radio"><label><input type="radio" name="import-row-sep" value="newline" checked /> New line</label></div>
+          <div class="export-radio"><label><input type="radio" name="import-row-sep" value="semicolon" /> Semicolon</label></div>
+          <div class="export-radio">
+            <label><input type="radio" name="import-row-sep" value="custom" /> Custom</label>
+            <input type="text" class="export-custom" id="import-row-custom" placeholder="e.g. ###" maxlength="10"
+                   onfocus="ImportModal.pickCustom('import-row-sep')"
+                   oninput="ImportModal.pickCustom('import-row-sep'); ImportModal.refresh()" />
+          </div>
+        </fieldset>
+      </div>
+
+      <div class="import-mode" onchange="ImportModal.refresh()">
+        <div class="export-radio"><label><input type="radio" name="import-mode" value="append" checked /> Add to current cards</label></div>
+        <div class="export-radio"><label><input type="radio" name="import-mode" value="replace" /> Replace current cards</label></div>
+      </div>
+      <p class="import-hint hidden" id="import-replace-hint">Replacing the cards of a set you're editing resets their study progress.</p>
+
+      <div class="import-status" id="import-status"></div>
+      <div class="import-preview-list" id="import-preview-list"></div>
+
+      <div class="modal-actions">
+        <button class="btn-outline" onclick="Modal.close('modal-import')">Cancel</button>
+        <button class="btn-primary" id="import-apply-btn" onclick="ImportModal.apply()">Import</button>
       </div>
     </div>
   </div>
@@ -2846,6 +2993,8 @@ const CreatePage = {
   editSet(id) {
     const set = DB.Sets.get(id);
     if (!set) return;
+    // Navigate first: navigate('create') runs init(), which clears the form
+    App.navigate('create');
     this._editId   = id;
     this._rowCount = 0;
 
@@ -2858,8 +3007,6 @@ const CreatePage = {
 
     set.cards.forEach(c => this.addRow(c));
     if (set.cards.length < 2) this.addRow();
-
-    App.navigate('create');
   },
 
   addRow(card = null) {
@@ -2889,6 +3036,18 @@ const CreatePage = {
     const rows = document.querySelectorAll('#card-rows .card-row');
     if (rows.length <= 1) { Toast.show('A set needs at least one card.'); return; }
     btn.closest('.card-row').remove();
+    this._updateCount();
+  },
+
+  // Re-label rows 1..n after bulk changes (import)
+  renumber() {
+    const rows = document.querySelectorAll('#card-rows .card-row');
+    rows.forEach((row, i) => {
+      row.dataset.rowN = i + 1;
+      const label = row.querySelector('.card-row-num');
+      if (label) label.textContent = 'Card ' + (i + 1);
+    });
+    this._rowCount = rows.length;
     this._updateCount();
   },
 
@@ -3131,6 +3290,229 @@ const ExportModal = {
 };
 
 /* ============================================
+   IMPORT MODAL
+   Paste (or load) text, choose separators, preview, then load
+   the cards into the Create / Edit form. Understands quoted
+   fields, so anything Export produces round-trips cleanly.
+   ============================================ */
+
+const ImportModal = {
+  _cards:    [],
+  _fileBase: '',
+
+  TERM_SEPS: { tab: '\t', comma: ',' },
+  ROW_SEPS:  { newline: '\n', semicolon: ';' },
+
+  open() {
+    document.getElementById('import-text').value        = '';
+    document.getElementById('import-file').value        = '';
+    document.getElementById('import-term-custom').value = '';
+    document.getElementById('import-row-custom').value  = '';
+    this._setRadio('import-term-sep', 'auto');
+    this._setRadio('import-row-sep',  'newline');
+    this._setRadio('import-mode',     'append');
+    this._fileBase = '';
+    this.refresh();
+    Modal.open('modal-import');
+    document.getElementById('import-text').focus();
+  },
+
+  // From the Study Sets page: go to the create form first, then open the dialog
+  openFromSets() {
+    App.navigate('create');
+    this.open();
+  },
+
+  pickCustom(name) { this._setRadio(name, 'custom'); },
+
+  _setRadio(name, value) {
+    const el = document.querySelector(`input[name="${name}"][value="${value}"]`);
+    if (el) el.checked = true;
+  },
+
+  _checked(name) {
+    return document.querySelector(`input[name="${name}"]:checked`).value;
+  },
+
+  // Tab wins if present anywhere, otherwise comma, otherwise tab
+  detectTermSep(text) {
+    if (text.includes('\t')) return { key: 'tab', sep: '\t' };
+    if (text.includes(','))  return { key: 'comma', sep: ',' };
+    return { key: 'tab', sep: '\t' };
+  },
+
+  _readSep(name, customId, map) {
+    const choice = this._checked(name);
+    if (choice === 'custom') {
+      const raw = document.getElementById(customId).value
+        .replace(/\\t/g, '\t')
+        .replace(/\\n/g, '\n');
+      return raw === '' ? null : raw;
+    }
+    return map[choice];
+  },
+
+  /**
+   * Split text into cards.
+   *  - Fields wrapped in "quotes" may contain separators and line breaks;
+   *    "" inside quotes is a literal quote.
+   *  - If a row has more than two fields (e.g. an unquoted comma inside a
+   *    definition), the first field is the term and the rest is the definition.
+   */
+  parse(text, termSep, rowSep) {
+    text = text.replace(/^\uFEFF/, '');
+    if (rowSep === '\n') text = text.replace(/\r\n?/g, '\n');
+
+    const rows = [];
+    let row = [], field = '', quoted = false, inQuotes = false, i = 0;
+    const endField = () => { row.push(field); field = ''; quoted = false; };
+    const endRow   = () => { endField(); rows.push(row); row = []; };
+
+    while (i < text.length) {
+      const ch = text[i];
+      if (inQuotes) {
+        if (ch === '"') {
+          if (text[i + 1] === '"') { field += '"'; i += 2; }
+          else { inQuotes = false; i++; }
+        } else { field += ch; i++; }
+        continue;
+      }
+      if (ch === '"' && field === '' && !quoted) { inQuotes = true; quoted = true; i++; continue; }
+      if (text.startsWith(termSep, i)) { endField(); i += termSep.length; continue; }
+      if (text.startsWith(rowSep, i))  { endRow();   i += rowSep.length;  continue; }
+      field += ch; i++;
+    }
+    endRow();
+
+    const cards = [];
+    let skipped = 0;
+    rows.forEach(fields => {
+      if (fields.every(f => f.trim() === '')) return; // blank line
+      const term = fields[0].trim();
+      const def  = fields.slice(1).join(termSep).trim();
+      if (!term || !def) { skipped++; return; }
+      cards.push({ term, definition: def });
+    });
+    return { cards, skipped };
+  },
+
+  refresh() {
+    const text   = document.getElementById('import-text').value;
+    const status = document.getElementById('import-status');
+    const list   = document.getElementById('import-preview-list');
+    const btn    = document.getElementById('import-apply-btn');
+    const autoEl = document.getElementById('import-auto-label');
+
+    // Auto-detect label
+    const auto = this.detectTermSep(text);
+    autoEl.textContent = text.trim() ? '(detected: ' + auto.key + ')' : '';
+
+    // Replace warning only matters when editing an existing set
+    const editing = !!document.getElementById('edit-set-id').value;
+    document.getElementById('import-replace-hint').classList.toggle(
+      'hidden', !(editing && this._checked('import-mode') === 'replace'));
+
+    this._cards = [];
+    list.innerHTML = '';
+    btn.disabled = true;
+    btn.textContent = 'Import';
+    status.className = 'import-status';
+
+    if (!text.trim()) { status.textContent = 'Nothing to import yet.'; return; }
+
+    const termSep = this._checked('import-term-sep') === 'auto'
+      ? auto.sep
+      : this._readSep('import-term-sep', 'import-term-custom', this.TERM_SEPS);
+    const rowSep = this._readSep('import-row-sep', 'import-row-custom', this.ROW_SEPS);
+
+    if (termSep === null || rowSep === null) {
+      status.className = 'import-status warn';
+      status.textContent = 'Enter a custom separator.';
+      return;
+    }
+    if (termSep === rowSep) {
+      status.className = 'import-status bad';
+      status.textContent = 'The two separators must be different.';
+      return;
+    }
+
+    const { cards, skipped } = this.parse(text, termSep, rowSep);
+    this._cards = cards;
+
+    if (cards.length === 0) {
+      status.className = 'import-status bad';
+      status.textContent = 'No cards found. Check the separators.' +
+        (skipped ? ' (' + skipped + ' row' + (skipped === 1 ? '' : 's') + ' had no definition.)' : '');
+      return;
+    }
+
+    status.className = 'import-status ' + (skipped ? 'warn' : 'ok');
+    status.textContent = cards.length + (cards.length === 1 ? ' card' : ' cards') + ' found' +
+      (skipped ? ' — ' + skipped + ' row' + (skipped === 1 ? '' : 's') + ' skipped (missing term or definition)' : '');
+
+    const SHOW = 5;
+    cards.slice(0, SHOW).forEach(c => {
+      const r = document.createElement('div');
+      r.className = 'import-preview-row';
+      r.innerHTML = `<span class="import-preview-term">${_esc(c.term)}</span>` +
+                    `<span class="import-preview-def">${_esc(c.definition)}</span>`;
+      list.appendChild(r);
+    });
+    if (cards.length > SHOW) {
+      const more = document.createElement('div');
+      more.className = 'import-preview-more';
+      more.textContent = '+ ' + (cards.length - SHOW) + ' more';
+      list.appendChild(more);
+    }
+
+    btn.disabled = false;
+    btn.textContent = 'Import ' + cards.length + (cards.length === 1 ? ' card' : ' cards');
+  },
+
+  loadFile(input) {
+    const file = input.files && input.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      document.getElementById('import-text').value = String(reader.result || '').replace(/^\uFEFF/, '');
+      this._fileBase = file.name.replace(/\.[^.]+$/, '');
+      this.refresh();
+    };
+    reader.onerror = () => Toast.show('Could not read that file.', 'error');
+    reader.readAsText(file);
+  },
+
+  apply() {
+    if (!this._cards.length) return;
+    const replace = this._checked('import-mode') === 'replace';
+    const rowsEl  = document.getElementById('card-rows');
+
+    if (replace) {
+      rowsEl.innerHTML = '';
+    } else {
+      // Drop untouched blank rows so imported cards sit right under existing ones
+      rowsEl.querySelectorAll('.card-row').forEach(row => {
+        const t = row.querySelector('[data-field="term"]').value.trim();
+        const d = row.querySelector('[data-field="def"]').value.trim();
+        if (!t && !d) row.remove();
+      });
+    }
+
+    this._cards.forEach(c => CreatePage.addRow({ term: c.term, definition: c.definition }));
+    CreatePage.renumber();
+
+    // Use the file name as the title if the set doesn't have one yet
+    const titleEl = document.getElementById('new-set-title');
+    if (!titleEl.value.trim() && this._fileBase) titleEl.value = this._fileBase.slice(0, 80);
+
+    const n = this._cards.length;
+    Modal.close('modal-import');
+    Toast.show('Imported ' + n + (n === 1 ? ' card' : ' cards') + '. Review them, then save the set.', 'success', 3200);
+    rowsEl.lastElementChild?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+  },
+};
+
+/* ============================================
    GLOBAL HELPERS
    ============================================ */
 
@@ -3147,9 +3529,9 @@ function _esc(str) {
 
 // Keyboard shortcuts
 document.addEventListener('keydown', e => {
-  const openModal = document.querySelector('.modal-overlay:not(.hidden)');
-  if (openModal) {
-    if (e.key === 'Escape') openModal.classList.add('hidden');
+  const openModals = document.querySelectorAll('.modal-overlay:not(.hidden)');
+  if (openModals.length) {
+    if (e.key === 'Escape') openModals.forEach(m => m.classList.add('hidden'));
     return; // don't trigger study shortcuts behind a modal
   }
 

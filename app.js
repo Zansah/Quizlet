@@ -167,7 +167,6 @@ const HomePage = {
 
     if (sets.length === 0) {
       list.innerHTML = '';
-      list.appendChild(empty);
       empty.classList.remove('hidden');
       return;
     }
@@ -261,6 +260,9 @@ const SetsPage = {
         <div class="set-card-progress-label">${mastery}% mastered</div>
       </div>
       <div class="set-card-actions">
+        <button class="icon-btn" title="Export" onclick="ExportModal.open('${s.id}')">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+        </button>
         <button class="icon-btn" title="Edit" onclick="CreatePage.editSet('${s.id}')">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
         </button>
@@ -982,6 +984,142 @@ const StatsPage = {
 };
 
 /* ============================================
+   EXPORT MODAL
+   Quizlet-style text export: choose the separator between
+   term/definition and between rows, preview, copy or download.
+   ============================================ */
+
+const ExportModal = {
+  _set: null,
+
+  TERM_SEPS: { tab: '\t', comma: ',' },
+  ROW_SEPS:  { newline: '\n', semicolon: ';' },
+
+  open(setId) {
+    const set = DB.Sets.get(setId);
+    if (!set) { Toast.show('Open a set first.', 'error'); return; }
+    this._set = set;
+
+    document.getElementById('export-subtitle').textContent = set.title;
+    document.getElementById('export-count').textContent =
+      set.cards.length + (set.cards.length === 1 ? ' card' : ' cards');
+
+    // Reset to Quizlet's defaults: tab between term/definition, new line between rows
+    this._setRadio('export-term-sep', 'tab');
+    this._setRadio('export-row-sep', 'newline');
+    document.getElementById('export-term-custom').value = '';
+    document.getElementById('export-row-custom').value  = '';
+
+    this.refresh();
+    Modal.open('modal-export');
+  },
+
+  pickCustom(name) {
+    this._setRadio(name, 'custom');
+  },
+
+  _setRadio(name, value) {
+    const el = document.querySelector(`input[name="${name}"][value="${value}"]`);
+    if (el) el.checked = true;
+  },
+
+  // Returns the chosen separator string, or null if "Custom" is picked but empty.
+  _readSep(name, customId, map) {
+    const choice = document.querySelector(`input[name="${name}"]:checked`).value;
+    if (choice === 'custom') {
+      // Allow typing \t and \n for tab / newline
+      const raw = document.getElementById(customId).value
+        .replace(/\\t/g, '\t')
+        .replace(/\\n/g, '\n');
+      return raw === '' ? null : raw;
+    }
+    return map[choice];
+  },
+
+  _seps() {
+    const termSep = this._readSep('export-term-sep', 'export-term-custom', this.TERM_SEPS);
+    const rowSep  = this._readSep('export-row-sep',  'export-row-custom',  this.ROW_SEPS);
+    if (termSep === null || rowSep === null) return null;
+    return { termSep, rowSep };
+  },
+
+  // Wrap a field in quotes (CSV-style) only when it would otherwise be ambiguous
+  _field(text, termSep, rowSep) {
+    const s = String(text ?? '');
+    const needsQuotes = s.includes(termSep) || s.includes(rowSep) || /[\r\n]/.test(s);
+    return needsQuotes ? '"' + s.replace(/"/g, '""') + '"' : s;
+  },
+
+  build() {
+    if (!this._set) return null;
+    const seps = this._seps();
+    if (!seps) return null;
+    const { termSep, rowSep } = seps;
+    return this._set.cards
+      .map(c => this._field(c.term, termSep, rowSep) + termSep + this._field(c.definition, termSep, rowSep))
+      .join(rowSep);
+  },
+
+  refresh() {
+    const out = this.build();
+    const ok  = out !== null;
+    const box = document.getElementById('export-preview');
+    box.value       = ok ? out : '';
+    box.placeholder = ok ? '' : 'Enter a custom separator to see the preview.';
+    document.getElementById('export-copy-btn').disabled     = !ok;
+    document.getElementById('export-download-btn').disabled = !ok;
+  },
+
+  async copy() {
+    const text = this.build();
+    if (text === null) return;
+    let copied = false;
+    try {
+      await navigator.clipboard.writeText(text);
+      copied = true;
+    } catch (e) {
+      // Fallback for insecure contexts / older browsers
+      const box = document.getElementById('export-preview');
+      box.focus();
+      box.select();
+      try { copied = document.execCommand('copy'); } catch (_) { copied = false; }
+      box.setSelectionRange(0, 0);
+    }
+    if (copied) Toast.show('Copied ' + this._set.cards.length + ' cards to clipboard.', 'success');
+    else        Toast.show('Copy failed. Select the preview text and copy it manually.', 'error', 3200);
+  },
+
+  download() {
+    const text = this.build();
+    const seps = this._seps();
+    if (text === null || !seps) return;
+
+    // Comma + new line is a real CSV, so save it as one
+    const isCsv = seps.termSep === ',' && seps.rowSep === '\n';
+    const ext   = isCsv ? 'csv' : 'txt';
+    const base  = (this._set.title || 'quizly-set')
+      .replace(/[\\/:*?"<>|]+/g, '')
+      .trim() || 'quizly-set';
+
+    // BOM lets Excel read non-ASCII characters in a CSV correctly
+    const blob = new Blob(
+      [(isCsv ? '\uFEFF' : '') + text],
+      { type: (isCsv ? 'text/csv' : 'text/plain') + ';charset=utf-8' }
+    );
+    const url = URL.createObjectURL(blob);
+    const a   = document.createElement('a');
+    a.href = url;
+    a.download = base + '.' + ext;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+
+    Toast.show('Downloaded ' + base + '.' + ext, 'success');
+  },
+};
+
+/* ============================================
    GLOBAL HELPERS
    ============================================ */
 
@@ -998,6 +1136,12 @@ function _esc(str) {
 
 // Keyboard shortcuts
 document.addEventListener('keydown', e => {
+  const openModal = document.querySelector('.modal-overlay:not(.hidden)');
+  if (openModal) {
+    if (e.key === 'Escape') openModal.classList.add('hidden');
+    return; // don't trigger study shortcuts behind a modal
+  }
+
   const page = App.currentPage;
   if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
 

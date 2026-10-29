@@ -13,6 +13,7 @@ const DB = (() => {
     PROGRESS: 'quizly_progress',
     SESSIONS: 'quizly_sessions',
     META:     'quizly_meta',
+    SCORES:   'quizly_scores',
   };
 
   /* ---- Internal helpers ---- */
@@ -196,6 +197,9 @@ const DB = (() => {
       const progress = read(KEYS.PROGRESS) || {};
       delete progress[id];
       write(KEYS.PROGRESS, progress);
+      const scores = read(KEYS.SCORES) || {};
+      delete scores[id];
+      write(KEYS.SCORES, scores);
       return true;
     },
 
@@ -332,6 +336,13 @@ const DB = (() => {
       this._save(m);
     },
 
+    addXp(n) {
+      const m = this.get();
+      m.totalXp = (m.totalXp || 0) + n;
+      this._save(m);
+      return m.totalXp;
+    },
+
     recordStudyDay() {
       const m = this.get();
       const today = todayStr();
@@ -348,7 +359,29 @@ const DB = (() => {
     },
   };
 
+  /* ---- SCORES (high scores for timed games) ---- */
+
+  const Scores = {
+    get(setId, mode) {
+      const all = read(KEYS.SCORES) || {};
+      return (all[setId] && all[setId][mode]) || 0;
+    },
+
+    // Saves the score if it beats the old best. Returns { best, isNew }.
+    submit(setId, mode, score) {
+      const all = read(KEYS.SCORES) || {};
+      if (!all[setId]) all[setId] = {};
+      const prev = all[setId][mode] || 0;
+      const isNew = score > prev;
+      if (isNew) {
+        all[setId][mode] = score;
+        write(KEYS.SCORES, all);
+      }
+      return { best: Math.max(prev, score), isNew };
+    },
+  };
+
   /* ---- Public API ---- */
-  return { init, Sets, Progress, Sessions, Meta, _uuid: uuid };
+  return { init, Sets, Progress, Sessions, Meta, Scores, _uuid: uuid };
 
 })();

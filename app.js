@@ -44,7 +44,153 @@ const Utils = {
     if (ms < 60000) return Math.round(ms / 1000) + 's';
     return Math.round(ms / 60000) + 'm ' + Math.round((ms % 60000) / 1000) + 's';
   },
+
+  // Lower-case, drop accents and punctuation, collapse spaces (works for any script)
+  normalize(s) {
+    return String(s ?? '')
+      .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+      .toLowerCase()
+      .replace(/&/g, ' and ')
+      .replace(/[^\p{L}\p{N}\s]/gu, ' ')
+      .replace(/\s+/g, ' ')
+      .trim();
+  },
+
+  editDistance(a, b) {
+    if (a === b) return 0;
+    const m = a.length, n = b.length;
+    if (!m) return n;
+    if (!n) return m;
+    let prev = Array.from({ length: n + 1 }, (_, j) => j);
+    for (let i = 1; i <= m; i++) {
+      const cur = [i];
+      for (let j = 1; j <= n; j++) {
+        cur[j] = Math.min(
+          prev[j] + 1,
+          cur[j - 1] + 1,
+          prev[j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1)
+        );
+      }
+      prev = cur;
+    }
+    return prev[n];
+  },
+
+  // Forgiving answer check: 'exact' | 'close' (small typo) | 'wrong'
+  checkTyped(input, answer) {
+    const a = Utils.normalize(input);
+    const b = Utils.normalize(answer);
+    if (!a) return 'wrong';
+    if (a === b) return 'exact';
+    const allowed = b.length <= 4 ? 0 : b.length <= 9 ? 1 : 2;
+    return allowed && Utils.editDistance(a, b) <= allowed ? 'close' : 'wrong';
+  },
 };
+
+/* ============================================
+   RETRY QUEUE
+   Used by the games: a card you miss comes back a few
+   cards later, and the game only ends once every card
+   has been answered correctly.
+   ============================================ */
+
+class CardQueue {
+  constructor(cards) {
+    this.items      = Utils.shuffle(cards);
+    this.total      = cards.length;
+    this.missed     = new Set();
+    this.missedList = [];
+  }
+  get current()  { return this.items[0]; }
+  get left()     { return this.items.length; }
+  get done()     { return this.items.length === 0; }
+  get firstTry() { return this.total - this.missed.size; }
+
+  pass() { this.items.shift(); }
+
+  fail() {
+    const c = this.items.shift();
+    if (!c) return;
+    if (!this.missed.has(c.id)) { this.missed.add(c.id); this.missedList.push(c); }
+    this.items.splice(Math.min(this.items.length, 3), 0, c);
+  }
+}
+
+/* ---- Shared game helpers ---- */
+
+// Returns the active set, or sends the user back to Study Sets
+function _studySet(minCards = 1) {
+  const setId = App.activeSetId;
+  if (!setId) { App.navigate('sets'); return null; }
+  const set = DB.Sets.get(setId);
+  if (!set || set.cards.length === 0) { App.navigate('sets'); return null; }
+  if (set.cards.length < minCards) {
+    Toast.show('This game needs at least ' + minCards + ' cards in the set.', 'error', 3200);
+    App.navigate('sets');
+    return null;
+  }
+  return set;
+}
+
+// Fills <prefix>-result-{title,sub,stats,extra,actions} and shows <prefix>-result
+function _renderResult(prefix, { title, sub, stats = [], extra = '', actions = [] }) {
+  const $ = id => document.getElementById(prefix + '-result' + id);
+  $('-title').textContent = title;
+  $('-sub').textContent   = sub;
+  $('-stats').innerHTML   = stats.map(s =>
+    `<div class="result-stat-card ${s.cls}"><span class="result-stat-val">${_esc(s.value)}</span>${_esc(s.label)}</div>`
+  ).join('');
+  $('-extra').innerHTML = extra;
+  const box = $('-actions');
+  box.innerHTML = '';
+  actions.forEach(a => {
+    const b = document.createElement('button');
+    b.className = a.primary ? 'btn-primary' : 'btn-outline';
+    b.textContent = a.label;
+    b.addEventListener('click', a.onClick);
+    box.appendChild(b);
+  });
+  document.getElementById(prefix + '-result').classList.remove('hidden');
+}
+
+function _missedList(label, cards) {
+  if (!cards.length) return '';
+  return `<div class="missed-box"><p class="missed-label">${_esc(label)}</p><ul class="missed-list">` +
+    cards.map(c =>
+      `<li><span class="missed-term">${_esc(c.term)}</span><span class="missed-def">${_esc(c.definition)}</span></li>`
+    ).join('') + '</ul></div>';
+}
+
+// Progress bar + chips for the queue-based games (ids: <prefix>-progress-*, <prefix>-chip-*)
+function _queueProgress(prefix, q) {
+  const learned = q.total - q.left;
+  document.getElementById(prefix + '-progress-fill').style.width = Utils.pct(learned, q.total) + '%';
+  document.getElementById(prefix + '-progress-text').textContent = learned + ' / ' + q.total;
+  document.getElementById(prefix + '-chip-ok').textContent   = learned + ' learned';
+  document.getElementById(prefix + '-chip-miss').textContent = q.missed.size + ' missed';
+  document.getElementById(prefix + '-chip-left').textContent = q.left + ' left';
+}
+
+// Log the session and show the end screen for a queue-based game
+function _finishQueueGame(prefix, mode, setId, q, startMs, again) {
+  const dur = Date.now() - startMs;
+  DB.Progress.recordSession(setId, q.firstTry, q.total);
+  DB.Sessions.log(setId, mode, q.firstTry, q.total, dur);
+  const pct = Utils.pct(q.firstTry, q.total);
+  _renderResult(prefix, {
+    title: 'Every card learned',
+    sub:   pct + '% right on the first try — ' + Utils.grade(pct) + ' — ' + Utils.formatDuration(dur),
+    stats: [
+      { value: q.firstTry,     label: 'Right first try', cls: 'correct' },
+      { value: q.missed.size,  label: 'Needed a retry',  cls: q.missed.size ? 'wrong' : 'neutral' },
+    ],
+    extra:   _missedList('Needed a retry', q.missedList),
+    actions: [
+      { label: 'Play again', onClick: again },
+      { label: 'Back to flashcards', primary: true, onClick: () => App.navigate('flashcards') },
+    ],
+  });
+}
 
 /* ============================================
    TOAST
@@ -102,6 +248,9 @@ const App = {
     // Update active set if provided
     if (setId !== undefined) this.activeSetId = setId;
 
+    // Stop timers on the page we're leaving
+    this._leave(this.currentPage);
+
     // Hide all pages
     document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
     document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
@@ -125,9 +274,21 @@ const App = {
       case 'learn':      LearnPage.init();      break;
       case 'quiz':       QuizPage.init();       break;
       case 'match':      MatchPage.init();      break;
+      case 'lesson':     LessonPage.init();     break;
+      case 'write':      WritePage.init();      break;
+      case 'speed':      SpeedPage.init();      break;
+      case 'hangman':    HangmanPage.init();    break;
+      case 'tf':         TFPage.init();         break;
       case 'create':     CreatePage.init();     break;
       case 'stats':      StatsPage.init();      break;
     }
+  },
+
+  _leave(page) {
+    if (page === 'speed') SpeedPage.stop();
+    if (page === 'match') MatchPage.stop();
+    if (page === 'tf')    TFPage.stop();
+    if (page === 'lesson') LessonPage.stop();
   },
 
   _updateStreak() {
@@ -291,16 +452,23 @@ const SetsPage = {
 
 /* ============================================
    FLASHCARD PAGE
+   Round 1 goes through every card. Cards marked
+   "Still learning" come back in the next round, and
+   rounds repeat until every card is marked "Got it".
    ============================================ */
 
 const FlashcardPage = {
-  _cards:    [],
-  _index:    0,
-  _flipped:  false,
-  _correct:  0,
-  _wrong:    0,
-  _setId:    null,
-  _startMs:  0,
+  _all:       [],     // every card in the set
+  _cards:     [],     // the deck for the current round
+  _marks:     {},     // cardId -> true (got it) / false (still learning), this round only
+  _missed:    [],     // cards missed in the round that just ended
+  _index:     0,
+  _flipped:   false,
+  _round:     1,
+  _firstPass: null,
+  _setId:     null,
+  _startMs:   0,
+  _studying:  false,
 
   init() {
     const setId = App.activeSetId;
@@ -308,72 +476,109 @@ const FlashcardPage = {
     const set = DB.Sets.get(setId);
     if (!set || set.cards.length === 0) { App.navigate('sets'); return; }
 
-    this._setId   = setId;
-    this._cards   = [...set.cards];
-    this._index   = 0;
-    this._flipped = false;
-    this._correct = 0;
-    this._wrong   = 0;
-    this._startMs = Date.now();
+    this._setId = setId;
+    this._all   = [...set.cards];
 
     document.getElementById('fc-title').textContent = set.title;
     document.getElementById('fc-set-meta').textContent =
       set.subject + ' — ' + set.cards.length + ' cards';
 
     DB.Meta.recordStudyDay();
+    this._begin();
+  },
+
+  isStudying() { return this._studying; },
+
+  _begin() {
+    this._round     = 1;
+    this._cards     = [...this._all];
+    this._marks     = {};
+    this._missed    = [];
+    this._index     = 0;
+    this._firstPass = null;
+    this._startMs   = Date.now();
+    this._showStudy();
     this._render();
   },
 
+  _showStudy() {
+    this._studying = true;
+    document.getElementById('fc-result').classList.add('hidden');
+    document.getElementById('fc-study').classList.remove('hidden');
+  },
+
   _render() {
-    const card = this._cards[this._index];
+    const card  = this._cards[this._index];
+    const total = this._cards.length;
     document.getElementById('fc-term-text').textContent = card.term;
     document.getElementById('fc-def-text').textContent  = card.definition;
     document.getElementById('fc-inner').classList.remove('flipped');
     this._flipped = false;
 
-    const total = this._cards.length;
-    const pct   = Math.round(((this._index + 1) / total) * 100);
-    document.getElementById('fc-progress-fill').style.width = pct + '%';
-    document.getElementById('fc-progress-text').textContent =
-      (this._index + 1) + ' / ' + total;
+    const verdicts = Object.values(this._marks);
+    const known    = verdicts.filter(v => v === true).length;
+    const learning = verdicts.filter(v => v === false).length;
 
-    document.getElementById('fc-stat-correct').textContent = this._correct + ' correct';
-    document.getElementById('fc-stat-wrong').textContent   = this._wrong + ' learning';
+    document.getElementById('fc-progress-fill').style.width = Utils.pct(verdicts.length, total) + '%';
+    document.getElementById('fc-progress-text').textContent = 'Card ' + (this._index + 1) + ' of ' + total;
+
+    const knownOverall = this._all.length - total + known;
+    document.getElementById('fc-known-text').textContent =
+      'Known so far: ' + knownOverall + ' / ' + this._all.length;
+
+    const badge = document.getElementById('fc-round');
+    badge.textContent = this._round === 1
+      ? 'Round 1 — all ' + total + ' cards'
+      : 'Round ' + this._round + ' — reviewing ' + total + ' missed ' + (total === 1 ? 'card' : 'cards');
+    badge.classList.toggle('review', this._round > 1);
+
+    document.getElementById('fc-stat-correct').textContent = known + ' got it';
+    document.getElementById('fc-stat-wrong').textContent   = learning + ' still learning';
   },
 
   flip() {
+    if (!this._studying) return;
     this._flipped = !this._flipped;
     document.getElementById('fc-inner').classList.toggle('flipped', this._flipped);
   },
 
   next() {
-    if (this._index < this._cards.length - 1) {
+    if (this._studying && this._index < this._cards.length - 1) {
       this._index++;
       this._render();
     }
   },
 
   prev() {
-    if (this._index > 0) {
+    if (this._studying && this._index > 0) {
       this._index--;
       this._render();
     }
   },
 
   mark(knew) {
+    if (!this._studying) return;
     const card = this._cards[this._index];
-    if (knew) this._correct++; else this._wrong++;
-    DB.Progress.recordCard(this._setId, card.id, knew);
-
-    if (this._index < this._cards.length - 1) {
-      this._index++;
-      this._render();
-    } else {
-      this._finish();
+    if (this._marks[card.id] !== knew) {
+      this._marks[card.id] = knew;
+      DB.Progress.recordCard(this._setId, card.id, knew);
     }
+
+    // Go to the next card in this round that has no verdict yet
+    const n = this._cards.length;
+    for (let step = 1; step <= n; step++) {
+      const i = (this._index + step) % n;
+      if (this._marks[this._cards[i].id] === undefined) {
+        this._index = i;
+        this._render();
+        return;
+      }
+    }
+    this._endRound();
   },
 
   shuffle() {
+    if (!this._studying) return;
     this._cards = Utils.shuffle(this._cards);
     this._index = 0;
     this._render();
@@ -381,23 +586,69 @@ const FlashcardPage = {
   },
 
   restart() {
-    this._index   = 0;
-    this._correct = 0;
-    this._wrong   = 0;
-    this._startMs = Date.now();
+    this._begin();
+  },
+
+  _endRound() {
+    const missed = this._cards.filter(c => this._marks[c.id] === false);
+    const known  = this._cards.length - missed.length;
+    this._studying = false;
+    document.getElementById('fc-study').classList.add('hidden');
+
+    // The first pass is the "real" score for the session log
+    if (this._round === 1) {
+      this._firstPass = { correct: known, total: this._cards.length };
+      DB.Progress.recordSession(this._setId, known, this._cards.length);
+      DB.Sessions.log(this._setId, 'flashcards', known, this._cards.length, Date.now() - this._startMs);
+    }
+
+    if (missed.length === 0) { this._showComplete(); return; }
+
+    this._missed = missed;
+    const n = missed.length;
+    _renderResult('fc', {
+      title: 'Round ' + this._round + ' complete',
+      sub:   'You knew ' + known + ' of ' + this._cards.length + '. The ' + n + ' you missed ' +
+             (n === 1 ? 'comes' : 'come') + ' back next.',
+      stats: [
+        { value: known, label: 'Got it',         cls: 'correct' },
+        { value: n,     label: 'Still learning', cls: 'wrong' },
+      ],
+      extra:   _missedList('Coming back', missed),
+      actions: [
+        { label: 'Stop for now', onClick: () => App.navigate('sets') },
+        { label: 'Review ' + n + (n === 1 ? ' missed card' : ' missed cards'), primary: true, onClick: () => this.nextRound() },
+      ],
+    });
+  },
+
+  nextRound() {
+    this._round++;
+    this._cards  = Utils.shuffle(this._missed);
+    this._marks  = {};
+    this._index  = 0;
+    this._showStudy();
     this._render();
   },
 
-  _finish() {
-    const dur = Date.now() - this._startMs;
-    DB.Progress.recordSession(this._setId, this._correct, this._cards.length);
-    DB.Sessions.log(this._setId, 'flashcards', this._correct, this._cards.length, dur);
-    const pct = Utils.pct(this._correct, this._cards.length);
-    Toast.show(
-      Utils.grade(pct) + ' — ' + this._correct + '/' + this._cards.length + ' correct (' + pct + '%)',
-      pct >= 70 ? 'success' : '',
-      3000
-    );
+  _showComplete() {
+    const fp     = this._firstPass || { correct: this._all.length, total: this._all.length };
+    const rounds = this._round;
+    const dur    = Date.now() - this._startMs;
+    _renderResult('fc', {
+      title: 'You know every card',
+      sub:   this._all.length + ' cards learned in ' + rounds + (rounds === 1 ? ' round' : ' rounds') +
+             ' — ' + Utils.formatDuration(dur),
+      stats: [
+        { value: fp.correct + ' / ' + fp.total, label: 'Known on the first pass', cls: 'correct' },
+        { value: rounds, label: rounds === 1 ? 'Round' : 'Rounds', cls: 'neutral' },
+      ],
+      actions: [
+        { label: 'Study again', onClick: () => this._begin() },
+        { label: 'Start a lesson', onClick: () => App.navigate('lesson') },
+        { label: 'Speed Round', primary: true, onClick: () => App.navigate('speed') },
+      ],
+    });
   },
 };
 
@@ -725,8 +976,8 @@ const MatchPage = {
 
     const tiles = [];
     cards.forEach((c, i) => {
-      tiles.push({ id: 'term-' + i,  pairId: 'def-' + i,  text: c.term,       type: 'term' });
-      tiles.push({ id: 'def-'  + i,  pairId: 'term-' + i, text: c.definition, type: 'def'  });
+      tiles.push({ id: 'term-' + i,  pairId: 'def-' + i,  text: c.term,       type: 'term', cardId: c.id });
+      tiles.push({ id: 'def-'  + i,  pairId: 'term-' + i, text: c.definition, type: 'def',  cardId: c.id });
     });
     this._tiles = Utils.shuffle(tiles);
 
@@ -743,6 +994,8 @@ const MatchPage = {
       grid.appendChild(div);
     });
   },
+
+  stop() { clearInterval(this._timerInt); },
 
   _startTimer() {
     if (this._started) return;
@@ -804,6 +1057,1268 @@ const MatchPage = {
     result.classList.remove('hidden');
     document.getElementById('match-result-sub').textContent =
       'Finished in ' + time + 's with ' + this._total + ' pairs matched.';
+  },
+};
+
+/* ============================================
+   WRITE PAGE
+   Type the term for each definition. Forgiving about
+   case, punctuation, accents and small typos. Missed
+   cards come back until you get every one.
+   ============================================ */
+
+const WritePage = {
+  _set: null, _q: null, _card: null, _state: 'ask', _startMs: 0,
+
+  init() {
+    const set = _studySet(1);
+    if (!set) return;
+    this._set = set;
+    document.getElementById('write-title').textContent = set.title;
+    document.getElementById('write-sub').textContent   = set.subject + ' — type the term that matches each definition';
+    document.getElementById('write-input').onkeydown = e => {
+      if (e.key === 'Enter' && !e.repeat) { e.preventDefault(); this._enter(); }
+    };
+    DB.Meta.recordStudyDay();
+    this.restart();
+  },
+
+  restart() {
+    this._q       = new CardQueue(this._set.cards);
+    this._startMs = Date.now();
+    document.getElementById('write-result').classList.add('hidden');
+    document.getElementById('write-active').classList.remove('hidden');
+    this._render();
+  },
+
+  _render() {
+    const q = this._q, card = q.current;
+    this._card  = card;
+    this._state = 'ask';
+    _queueProgress('write', q);
+
+    document.getElementById('write-label').textContent =
+      q.missed.has(card.id) ? 'Try again — type the term for:' : 'Type the term for:';
+    document.getElementById('write-question').textContent = card.definition;
+
+    const input = document.getElementById('write-input');
+    input.value = '';
+    input.readOnly = false;
+    input.className = 'form-input';
+    document.getElementById('write-feedback').className = 'quiz-feedback hidden';
+    document.getElementById('write-check').classList.remove('hidden');
+    document.getElementById('write-skip').classList.remove('hidden');
+    document.getElementById('write-override').classList.add('hidden');
+    document.getElementById('write-next').classList.add('hidden');
+    input.focus();
+  },
+
+  _enter() { if (this._state === 'ask') this.submit(); else this.next(); },
+
+  submit() {
+    if (this._state !== 'ask') return;
+    const input = document.getElementById('write-input');
+    if (!input.value.trim()) return;
+    const res = Utils.checkTyped(input.value, this._card.term);
+    this._settle(res !== 'wrong', res === 'close', false);
+  },
+
+  dontKnow() {
+    if (this._state !== 'ask') return;
+    this._settle(false, false, true);
+  },
+
+  _settle(ok, close, gaveUp) {
+    this._state = ok ? 'right' : 'wrong';
+    DB.Progress.recordCard(this._set.id, this._card.id, ok);
+
+    const input = document.getElementById('write-input');
+    input.readOnly = true;
+    input.classList.add(ok ? 'correct' : 'wrong');
+
+    const fb = document.getElementById('write-feedback');
+    fb.className = 'quiz-feedback ' + (ok ? 'correct' : 'wrong');
+    fb.textContent = ok
+      ? (close ? 'Correct — mind the spelling: ' + this._card.term : 'Correct!')
+      : 'The answer was: ' + this._card.term;
+
+    document.getElementById('write-check').classList.add('hidden');
+    document.getElementById('write-skip').classList.add('hidden');
+    document.getElementById('write-override').classList.toggle('hidden', ok || gaveUp);
+    document.getElementById('write-next').classList.remove('hidden');
+  },
+
+  // Typed a valid variant the checker didn't accept
+  override() {
+    if (this._state !== 'wrong') return;
+    this._state = 'right';
+    DB.Progress.recordCard(this._set.id, this._card.id, true);
+    document.getElementById('write-input').className = 'form-input correct';
+    const fb = document.getElementById('write-feedback');
+    fb.className = 'quiz-feedback correct';
+    fb.textContent = 'Marked as correct.';
+    document.getElementById('write-override').classList.add('hidden');
+  },
+
+  next() {
+    if (this._state !== 'right' && this._state !== 'wrong') return;
+    if (this._state === 'right') this._q.pass(); else this._q.fail();
+    if (this._q.done) {
+      this._state = 'done';
+      document.getElementById('write-active').classList.add('hidden');
+      _finishQueueGame('write', 'write', this._set.id, this._q, this._startMs, () => this.restart());
+    } else {
+      this._render();
+    }
+  },
+};
+
+/* ============================================
+   SPEED ROUND
+   60 seconds of multiple choice. Streaks raise your
+   multiplier, wrong answers cost 3 seconds. Best score
+   is saved per set.
+   ============================================ */
+
+const SpeedPage = {
+  DURATION: 60000,
+  PENALTY:  3000,
+
+  _set: null, _deck: [], _last: null, _card: null,
+  _timer: null, _nextT: null, _running: false, _locked: false, _endAt: 0,
+  _score: 0, _streak: 0, _bestStreak: 0, _right: 0, _total: 0, _missed: new Map(),
+
+  init() {
+    const set = _studySet(2);
+    if (!set) return;
+    this.stop();
+    this._set = set;
+    document.getElementById('speed-title').textContent = set.title;
+    document.getElementById('speed-sub').textContent   = set.subject;
+    const best = DB.Scores.get(set.id, 'speed');
+    document.getElementById('speed-best').textContent  = best ? 'Your best on this set: ' + best + ' points' : 'No score yet — set the first one.';
+    document.getElementById('speed-intro').classList.remove('hidden');
+    document.getElementById('speed-play').classList.add('hidden');
+    document.getElementById('speed-result').classList.add('hidden');
+    DB.Meta.recordStudyDay();
+  },
+
+  stop() {
+    clearInterval(this._timer);
+    clearTimeout(this._nextT);
+    this._timer = this._nextT = null;
+    this._running = false;
+  },
+
+  start() {
+    this.stop();
+    this._deck = []; this._last = null;
+    this._score = 0; this._streak = 0; this._bestStreak = 0;
+    this._right = 0; this._total = 0; this._missed = new Map();
+    document.getElementById('speed-intro').classList.add('hidden');
+    document.getElementById('speed-result').classList.add('hidden');
+    document.getElementById('speed-play').classList.remove('hidden');
+
+    this._running = true;
+    this._endAt   = Date.now() + this.DURATION;
+    this._hud();
+    this._tick();
+    this._timer = setInterval(() => this._tick(), 100);
+    this._nextQuestion();
+  },
+
+  _tick() {
+    const left = Math.max(0, this._endAt - Date.now());
+    const clock = document.getElementById('speed-clock');
+    clock.textContent = (left / 1000).toFixed(1) + 's';
+    clock.classList.toggle('low', left < 10000);
+    document.getElementById('speed-bar').style.width = Utils.pct(left, this.DURATION) + '%';
+    if (left <= 0) this._end();
+  },
+
+  _mult() { return Math.min(4, 1 + Math.floor(this._streak / 3)); },
+
+  _hud() {
+    document.getElementById('speed-score').textContent  = this._score + ' pts';
+    document.getElementById('speed-streak').textContent = 'Streak ' + this._streak + ' · ×' + this._mult();
+  },
+
+  _draw() {
+    if (!this._deck.length) {
+      this._deck = Utils.shuffle(this._set.cards);
+      if (this._deck.length > 1 && this._deck[0].id === this._last) this._deck.push(this._deck.shift());
+    }
+    return this._deck.shift();
+  },
+
+  _nextQuestion() {
+    if (!this._running) return;
+    const card = this._draw();
+    this._card = card; this._last = card.id; this._locked = false;
+    document.getElementById('speed-question').textContent = card.definition;
+
+    const all  = this._set.cards;
+    const opts = Utils.buildOptions(all, card, 'term', Math.min(4, all.length));
+    const box  = document.getElementById('speed-options');
+    box.innerHTML = '';
+    const keys = ['A', 'B', 'C', 'D'];
+    opts.forEach((opt, i) => {
+      const btn = document.createElement('button');
+      btn.className = 'quiz-option';
+      btn.dataset.val = opt;
+      btn.innerHTML = `<span class="opt-key">${keys[i]}</span>${_esc(opt)}`;
+      btn.addEventListener('click', () => this._pick(opt));
+      box.appendChild(btn);
+    });
+  },
+
+  _pick(opt) {
+    if (!this._running || this._locked) return;
+    this._locked = true;
+    const card = this._card;
+    const ok   = opt === card.term;
+    this._total++;
+    DB.Progress.recordCard(this._set.id, card.id, ok);
+
+    document.querySelectorAll('#speed-options .quiz-option').forEach(b => {
+      b.classList.add('disabled');
+      if (b.dataset.val === card.term) b.classList.add('correct');
+      else if (b.dataset.val === opt)  b.classList.add('wrong');
+    });
+
+    if (ok) {
+      this._right++;
+      this._streak++;
+      this._bestStreak = Math.max(this._bestStreak, this._streak);
+      this._score += 10 * this._mult();
+    } else {
+      this._streak = 0;
+      this._endAt -= this.PENALTY;
+      this._missed.set(card.id, card);
+    }
+    this._hud();
+    this._nextT = setTimeout(() => this._nextQuestion(), ok ? 220 : 800);
+  },
+
+  _end() {
+    if (!this._running) return;
+    this.stop();
+    const set = this._set;
+    const { best, isNew } = DB.Scores.submit(set.id, 'speed', this._score);
+    if (this._total > 0) DB.Progress.recordSession(set.id, this._right, this._total);
+    DB.Sessions.log(set.id, 'speed', this._right, this._total, this.DURATION);
+
+    document.getElementById('speed-play').classList.add('hidden');
+    const acc = Utils.pct(this._right, this._total);
+    _renderResult('speed', {
+      title: 'Time\u2019s up — ' + this._score + ' points',
+      sub:   isNew && this._score > 0 ? 'New best for this set!' : 'Best on this set: ' + best + ' points',
+      stats: [
+        { value: this._right,             label: 'Correct',     cls: 'correct' },
+        { value: this._total - this._right, label: 'Wrong',     cls: this._total - this._right ? 'wrong' : 'neutral' },
+        { value: this._bestStreak,        label: 'Best streak', cls: 'neutral' },
+        { value: acc + '%',               label: 'Accuracy',    cls: 'neutral' },
+      ],
+      extra:   _missedList('Worth another look', [...this._missed.values()]),
+      actions: [
+        { label: 'Play again', primary: true, onClick: () => this.start() },
+        { label: 'Back to flashcards', onClick: () => App.navigate('flashcards') },
+      ],
+    });
+  },
+};
+
+/* ============================================
+   HANGMAN
+   The definition is the clue; guess the term letter by
+   letter. Six wrong guesses and you lose that card, but it
+   comes back later. Terms without Latin letters are skipped.
+   ============================================ */
+
+const HangmanPage = {
+  MAX: 6,
+  _set: null, _eligible: [], _q: null, _card: null,
+  _guessed: new Set(), _wrong: 0, _state: 'play', _startMs: 0,
+
+  _base(ch)     { return ch.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase(); },
+  _isLetter(ch) { return /^[a-z]$/.test(this._base(ch)); },
+  _letters(term) {
+    return [...new Set(Array.from(term).filter(c => this._isLetter(c)).map(c => this._base(c)))];
+  },
+
+  init() {
+    const set = _studySet(1);
+    if (!set) return;
+    const eligible = set.cards.filter(c => this._letters(c.term).length > 0);
+    if (!eligible.length) {
+      Toast.show('Hangman needs terms that contain Latin letters.', 'error', 3200);
+      App.navigate('sets');
+      return;
+    }
+    this._set      = set;
+    this._eligible = eligible;
+    document.getElementById('hm-title').textContent = set.title;
+    document.getElementById('hm-sub').textContent   = set.subject + ' — guess the term from its definition' +
+      (eligible.length < set.cards.length ? ' (' + eligible.length + ' of ' + set.cards.length + ' terms playable)' : '');
+
+    const keys = document.getElementById('hm-keys');
+    keys.innerHTML = '';
+    'abcdefghijklmnopqrstuvwxyz'.split('').forEach(l => {
+      const b = document.createElement('button');
+      b.className = 'hm-key';
+      b.textContent = l.toUpperCase();
+      b.dataset.letter = l;
+      b.addEventListener('click', () => this.guess(l));
+      keys.appendChild(b);
+    });
+
+    DB.Meta.recordStudyDay();
+    this.restart();
+  },
+
+  restart() {
+    this._q       = new CardQueue(this._eligible);
+    this._startMs = Date.now();
+    document.getElementById('hm-result').classList.add('hidden');
+    document.getElementById('hm-active').classList.remove('hidden');
+    this._round();
+  },
+
+  _round() {
+    const q = this._q, card = q.current;
+    this._card    = card;
+    this._guessed = new Set();
+    this._wrong   = 0;
+    this._state   = 'play';
+    _queueProgress('hm', q);
+
+    document.getElementById('hm-label').textContent =
+      q.missed.has(card.id) ? 'Try again — guess the term for:' : 'Guess the term for:';
+    document.getElementById('hm-clue').textContent = card.definition;
+    document.getElementById('hm-feedback').className = 'quiz-feedback hidden';
+    document.getElementById('hm-hint').classList.remove('hidden');
+    document.getElementById('hm-giveup').classList.remove('hidden');
+    document.getElementById('hm-next').classList.add('hidden');
+    document.querySelectorAll('#hm-keys .hm-key').forEach(k => { k.className = 'hm-key'; k.disabled = false; });
+    this._draw(false);
+  },
+
+  _draw(reveal) {
+    const wrap = document.getElementById('hm-word');
+    wrap.innerHTML = '';
+    let word = null;
+    Array.from(this._card.term).forEach(ch => {
+      if (/\s/.test(ch)) { word = null; return; }
+      if (!word) { word = document.createElement('div'); word.className = 'hm-w'; wrap.appendChild(word); }
+      const slot = document.createElement('span');
+      slot.className = 'hm-slot';
+      if (!this._isLetter(ch)) {
+        slot.textContent = ch;
+        slot.classList.add('fixed');
+      } else if (this._guessed.has(this._base(ch))) {
+        slot.textContent = ch;
+      } else if (reveal) {
+        slot.textContent = ch;
+        slot.classList.add('miss');
+      }
+      word.appendChild(slot);
+    });
+
+    document.querySelectorAll('#hm-svg .hm-part').forEach((p, i) => p.classList.toggle('show', i < this._wrong));
+    const left = this.MAX - this._wrong;
+    document.getElementById('hm-lives').textContent = left + (left === 1 ? ' life left' : ' lives left');
+  },
+
+  guess(letter) {
+    if (this._state !== 'play' || this._guessed.has(letter)) return;
+    this._guessed.add(letter);
+    const hit = this._letters(this._card.term).includes(letter);
+    const key = document.querySelector(`#hm-keys .hm-key[data-letter="${letter}"]`);
+    if (key) { key.classList.add(hit ? 'hit' : 'miss'); key.disabled = true; }
+    if (!hit) this._wrong++;
+    this._draw(false);
+    this._check();
+  },
+
+  hint() {
+    if (this._state !== 'play' || this._wrong >= this.MAX - 1) return;
+    const unseen = this._letters(this._card.term).filter(l => !this._guessed.has(l));
+    if (!unseen.length) return;
+    const letter = unseen[Math.floor(Math.random() * unseen.length)];
+    this._guessed.add(letter);
+    const key = document.querySelector(`#hm-keys .hm-key[data-letter="${letter}"]`);
+    if (key) { key.classList.add('hit'); key.disabled = true; }
+    this._wrong++;                       // a hint costs a life
+    this._draw(false);
+    this._check();
+  },
+
+  giveUp() { if (this._state === 'play') this._settle(false); },
+
+  _check() {
+    if (this._letters(this._card.term).every(l => this._guessed.has(l))) this._settle(true);
+    else if (this._wrong >= this.MAX) this._settle(false);
+  },
+
+  _settle(won) {
+    this._state = won ? 'won' : 'lost';
+    DB.Progress.recordCard(this._set.id, this._card.id, won);
+    this._draw(!won);
+    document.querySelectorAll('#hm-keys .hm-key').forEach(k => { k.disabled = true; });
+    const fb = document.getElementById('hm-feedback');
+    fb.className = 'quiz-feedback ' + (won ? 'correct' : 'wrong');
+    fb.textContent = won ? 'Solved!' : 'The answer was: ' + this._card.term;
+    document.getElementById('hm-hint').classList.add('hidden');
+    document.getElementById('hm-giveup').classList.add('hidden');
+    document.getElementById('hm-next').classList.remove('hidden');
+  },
+
+  next() {
+    if (this._state !== 'won' && this._state !== 'lost') return;
+    if (this._state === 'won') this._q.pass(); else this._q.fail();
+    if (this._q.done) {
+      this._state = 'done';
+      document.getElementById('hm-active').classList.add('hidden');
+      _finishQueueGame('hm', 'hangman', this._set.id, this._q, this._startMs, () => this.restart());
+    } else {
+      this._round();
+    }
+  },
+};
+
+/* ============================================
+   TRUE / FALSE
+   A term and a definition: do they belong together?
+   Missed cards come back until you get every one.
+   ============================================ */
+
+const TFPage = {
+  _set: null, _q: null, _card: null, _isTrue: true, _state: 'ask', _startMs: 0, _t: null,
+
+  init() {
+    const set = _studySet(2);
+    if (!set) return;
+    this._set = set;
+    document.getElementById('tf-title').textContent = set.title;
+    document.getElementById('tf-sub').textContent   = set.subject + ' — decide if each definition matches its term';
+    DB.Meta.recordStudyDay();
+    this.restart();
+  },
+
+  stop() { clearTimeout(this._t); this._t = null; },
+
+  restart() {
+    this.stop();
+    this._q       = new CardQueue(this._set.cards);
+    this._startMs = Date.now();
+    document.getElementById('tf-result').classList.add('hidden');
+    document.getElementById('tf-active').classList.remove('hidden');
+    this._render();
+  },
+
+  _render() {
+    const q = this._q, card = q.current;
+    this._card  = card;
+    this._state = 'ask';
+    _queueProgress('tf', q);
+
+    // A false pairing borrows the definition of a different card
+    const others = this._set.cards.filter(c => c.id !== card.id && c.definition !== card.definition);
+    this._isTrue = !others.length || Math.random() < 0.5;
+    const shown  = this._isTrue ? card.definition : others[Math.floor(Math.random() * others.length)].definition;
+
+    document.getElementById('tf-term').textContent = card.term;
+    document.getElementById('tf-def').textContent  = shown;
+    ['tf-true', 'tf-false'].forEach(id => { const b = document.getElementById(id); b.className = 'tf-btn'; b.disabled = false; });
+    document.getElementById('tf-feedback').className = 'quiz-feedback hidden';
+    document.getElementById('tf-next').classList.add('hidden');
+  },
+
+  answer(guess) {
+    if (this._state !== 'ask') return;
+    const ok = guess === this._isTrue;
+    this._state = ok ? 'right' : 'wrong';
+    DB.Progress.recordCard(this._set.id, this._card.id, ok);
+
+    const trueBtn = document.getElementById('tf-true'), falseBtn = document.getElementById('tf-false');
+    trueBtn.disabled = falseBtn.disabled = true;
+    (this._isTrue ? trueBtn : falseBtn).classList.add('correct');
+    if (!ok) (guess ? trueBtn : falseBtn).classList.add('wrong');
+
+    const fb = document.getElementById('tf-feedback');
+    fb.className = 'quiz-feedback ' + (ok ? 'correct' : 'wrong');
+    if (ok) {
+      fb.textContent = 'Correct!';
+      this._t = setTimeout(() => this.next(), 700);
+    } else {
+      fb.textContent = this._isTrue
+        ? 'Not quite — that definition does match.'
+        : 'Not quite — the real definition is: ' + this._card.definition;
+      document.getElementById('tf-next').classList.remove('hidden');
+    }
+  },
+
+  next() {
+    if (this._state !== 'right' && this._state !== 'wrong') return;
+    this.stop();
+    if (this._state === 'right') this._q.pass(); else this._q.fail();
+    if (this._q.done) {
+      this._state = 'done';
+      document.getElementById('tf-active').classList.add('hidden');
+      _finishQueueGame('tf', 'truefalse', this._set.id, this._q, this._startMs, () => this.restart());
+    } else {
+      this._render();
+    }
+  },
+};
+
+/* ============================================
+   SPEECH (optional)
+   Uses the browser's built-in voices. Listening exercises
+   only exist when a voice is installed for the language
+   the person picks, so nothing is ever read in the wrong
+   accent.
+   ============================================ */
+
+const Speech = {
+  _voices: [],
+
+  ok() {
+    return typeof window !== 'undefined' && 'speechSynthesis' in window &&
+           typeof window.SpeechSynthesisUtterance !== 'undefined';
+  },
+
+  load(cb) {
+    if (!this.ok()) { cb([]); return; }
+    const grab = () => { this._voices = window.speechSynthesis.getVoices() || []; return this._voices.length; };
+    if (grab()) { cb(this._voices); return; }
+    let done = false;
+    const fin = () => { if (done) return; done = true; grab(); cb(this._voices); };
+    try { window.speechSynthesis.addEventListener('voiceschanged', fin, { once: true }); } catch (e) { /* ignore */ }
+    setTimeout(fin, 800);
+  },
+
+  // [{ tag, label }] for every language that has an installed voice
+  languages() {
+    let names = null;
+    try { names = new Intl.DisplayNames(['en'], { type: 'language' }); } catch (e) { /* ignore */ }
+    const seen = new Map();
+    this._voices.forEach(v => {
+      if (!v.lang || seen.has(v.lang)) return;
+      let label = v.lang;
+      try { label = (names && names.of(v.lang.replace('_', '-'))) || v.lang; } catch (e) { /* ignore */ }
+      seen.set(v.lang, label);
+    });
+    return [...seen].map(([tag, label]) => ({ tag, label })).sort((a, b) => a.label.localeCompare(b.label));
+  },
+
+  voiceFor(tag) {
+    if (!tag) return null;
+    const base = tag.split(/[-_]/)[0].toLowerCase();
+    return this._voices.find(v => v.lang === tag) ||
+           this._voices.find(v => (v.lang || '').split(/[-_]/)[0].toLowerCase() === base) || null;
+  },
+
+  speak(text, tag, rate = 1) {
+    if (!this.ok() || !tag) return;
+    try {
+      const synth = window.speechSynthesis;
+      synth.cancel();
+      const u = new window.SpeechSynthesisUtterance(text);
+      const v = this.voiceFor(tag);
+      if (v) u.voice = v;
+      u.lang = tag;
+      u.rate = rate;
+      synth.speak(u);
+    } catch (e) { /* ignore */ }
+  },
+
+  cancel() {
+    try { if (this.ok()) window.speechSynthesis.cancel(); } catch (e) { /* ignore */ }
+  },
+};
+
+/* ============================================
+   LESSON PAGE
+   A mixed lesson, one exercise at a time: multiple choice,
+   fill in the blank, build the definition, match pairs,
+   typing and (when a voice exists) listening. Five hearts,
+   XP, and anything missed repeats before the lesson ends.
+   No speaking exercises.
+   ============================================ */
+
+const LessonPage = {
+  HEARTS: 5,
+  STOP: new Set(('the and that with from which their there this these those into such when where while also been ' +
+    'have has for are was were its your they them than then onto over each other only used uses can may will ' +
+    'about between during after before more most some any not but').split(' ')),
+
+  _set: null, _lang: '', _queue: [], _ex: null, _total: 0, _done: 0,
+  _hearts: 5, _xp: 0, _attempts: 0, _firstOk: 0, _mistakes: 0, _missed: new Map(), _startMs: 0,
+  _sel: null, _built: [], _inputEl: null, _mSel: null, _playing: false, _audioT: null,
+
+  /* ---------- setup ---------- */
+
+  init() {
+    const set = _studySet(1);
+    if (!set) return;
+    this.stop();
+    this._set = set;
+    document.getElementById('lesson-title').textContent = set.title;
+    document.getElementById('lesson-sub').textContent   = set.subject + ' — ' + set.cards.length + ' cards';
+    document.getElementById('lesson-intro').classList.remove('hidden');
+    document.getElementById('lesson-play').classList.add('hidden');
+    document.getElementById('lesson-result').classList.add('hidden');
+    DB.Meta.recordStudyDay();
+    Speech.load(() => { if (App.currentPage === 'lesson') this._fillLangs(); });
+  },
+
+  stop() {
+    clearTimeout(this._audioT);
+    this._audioT = null;
+    this._playing = false;
+    Speech.cancel();
+  },
+
+  quit() {
+    this.stop();
+    App.navigate('sets');
+  },
+
+  _pref(key, val) {
+    try {
+      if (val === undefined) return localStorage.getItem('quizly_lesson_' + key);
+      localStorage.setItem('quizly_lesson_' + key, val);
+    } catch (e) { /* storage unavailable */ }
+    return null;
+  },
+
+  _fillLangs() {
+    const sel   = document.getElementById('ls-lang');
+    const note  = document.getElementById('ls-voice-note');
+    const langs = Speech.languages();
+    sel.innerHTML = '<option value="">Off</option>' +
+      langs.map(l => `<option value="${_esc(l.tag)}">${_esc(l.label)}</option>`).join('');
+    if (!langs.length) {
+      sel.disabled = true;
+      note.textContent = 'This browser has no speech voices installed, so listening exercises are switched off.';
+      return;
+    }
+    sel.disabled = false;
+    note.textContent = 'Pick the language your terms are written in to add listening exercises. Leave it Off to skip them.';
+    const saved = this._pref('lang');
+    if (saved && langs.some(l => l.tag === saved)) sel.value = saved;
+  },
+
+  /* ---------- building the lesson ---------- */
+
+  start() {
+    this.stop();
+    const set = this._set;
+    const len = parseInt(document.getElementById('ls-length').value, 10) || 12;
+    const lang = document.getElementById('ls-lang').value;
+    this._pref('lang', lang);
+    this._lang = lang && Speech.voiceFor(lang) ? lang : '';
+
+    this._queue    = this._build(len);
+    this._total    = this._queue.length;
+    this._done     = 0;
+    this._hearts   = this.HEARTS;
+    this._xp       = 0;
+    this._attempts = 0;
+    this._firstOk  = 0;
+    this._mistakes = 0;
+    this._missed   = new Map();
+    this._startMs  = Date.now();
+    this._playing  = true;
+
+    document.getElementById('lesson-intro').classList.add('hidden');
+    document.getElementById('lesson-result').classList.add('hidden');
+    document.getElementById('lesson-play').classList.remove('hidden');
+    this._render();
+  },
+
+  _clean(w)   { return w.replace(/^[^\p{L}\p{N}]+|[^\p{L}\p{N}]+$/gu, ''); },
+  _okWord(w)  { return w.length >= 4 && !this.STOP.has(w.toLowerCase()); },
+  _tokens(s)  { return s.trim().split(/\s+/).filter(Boolean); },
+  _caseOf(w)  { return w === w.toUpperCase() && /\p{Lu}/u.test(w) ? 'U' : /^\p{Lu}/u.test(w) ? 'C' : 'L'; },
+
+  _blankable(card) {
+    const t = this._tokens(card.definition);
+    return t.length >= 5 && t.some(x => this._okWord(this._clean(x)));
+  },
+
+  _buildable(card) {
+    const n = this._tokens(card.definition).length;
+    return n >= 4 && n <= 16;
+  },
+
+  _eligible(card) {
+    const many = this._set.cards.length >= 2;
+    const t = ['type'];
+    if (many) t.push('mc_def2term', 'mc_term2def', 'mc_def2term');
+    if (this._blankable(card)) t.push('blank', 'blank');
+    if (this._buildable(card)) t.push('build');
+    if (this._lang) t.push(many ? 'listen_pick' : 'listen_type', 'listen_type');
+    return t;
+  },
+
+  _build(n) {
+    const cards = this._set.cards;
+    const p = DB.Progress.forSet(this._set.id);
+    const weight = c => { const s = p.cards && p.cards[c.id]; return s ? s.incorrect - s.correct : 0; };
+    // weakest cards first, ties in random order
+    this._pool = Utils.shuffle(cards).sort((a, b) => weight(b) - weight(a));
+
+    const withMatch = cards.length >= 3 && n >= 8;
+    const slots = n - (withMatch ? 1 : 0);
+    const out = [];
+    let last = '';
+    for (let i = 0; i < slots; i++) {
+      const card = this._pool[i % this._pool.length];
+      const opts = this._eligible(card);
+      const fresh = opts.filter(t => t !== last);
+      const type = (fresh.length ? fresh : opts)[Math.floor(Math.random() * (fresh.length || opts.length))];
+      out.push(this._make(type, card));
+      last = type;
+    }
+    if (withMatch) out.splice(Math.min(3, out.length), 0, this._make('match', this._pool[0]));
+    return out;
+  },
+
+  _make(type, card) {
+    const cards = this._set.cards;
+    const ex = { type, card, state: 'ask', failed: false, counted: false };
+    const optN = Math.min(4, cards.length);
+
+    if (type === 'mc_def2term' || type === 'listen_pick') ex.options = Utils.buildOptions(cards, card, 'term', optN);
+    if (type === 'mc_term2def') ex.options = Utils.buildOptions(cards, card, 'definition', optN);
+
+    if (type === 'blank') {
+      const tokens = this._tokens(card.definition);
+      const idx = tokens.map((t, i) => this._okWord(this._clean(t)) ? i : -1).filter(i => i >= 0);
+      const gap = idx[Math.floor(Math.random() * idx.length)];
+      const raw = tokens[gap];
+      ex.tokens = tokens;
+      ex.gap    = gap;
+      ex.pre    = raw.match(/^[^\p{L}\p{N}]*/u)[0];
+      ex.post   = raw.match(/[^\p{L}\p{N}]*$/u)[0];
+      ex.answer = this._clean(raw);
+      const cls = this._caseOf(ex.answer);
+      const seen = new Set([ex.answer.toLowerCase()]);
+      const pool = [];
+      cards.forEach(c => {
+        if (c.id === card.id) return;
+        this._tokens(c.definition).forEach(t => {
+          const w = this._clean(t);
+          if (this._okWord(w) && !seen.has(w.toLowerCase())) { seen.add(w.toLowerCase()); pool.push(w); }
+        });
+      });
+      const same  = Utils.shuffle(pool.filter(w => this._caseOf(w) === cls));
+      const other = Utils.shuffle(pool.filter(w => this._caseOf(w) !== cls));
+      const dis   = [...same, ...other].slice(0, 3);
+      if (dis.length >= 2) ex.options = Utils.shuffle([ex.answer, ...dis]);
+      else ex.typed = true;
+    }
+
+    if (type === 'build') {
+      const words = this._tokens(card.definition);
+      const have  = new Set(words.map(w => w.toLowerCase()));
+      const extra = [];
+      Utils.shuffle(cards.filter(c => c.id !== card.id)).forEach(c => {
+        Utils.shuffle(this._tokens(c.definition)).forEach(t => {
+          if (extra.length < 2 && !have.has(t.toLowerCase()) && !extra.includes(t)) extra.push(t);
+        });
+      });
+      ex.words = words;
+      ex.chips = Utils.shuffle([...words, ...extra].map((text, id) => ({ id, text })));
+    }
+
+    if (type === 'match') {
+      const pairs = this._pool.slice(0, Math.min(5, this._pool.length));
+      ex.pairs = pairs;
+      ex.left  = Utils.shuffle(pairs);
+      ex.right = Utils.shuffle(pairs);
+      ex.mm = 0;
+    }
+    return ex;
+  },
+
+  /* ---------- rendering ---------- */
+
+  _el(tag, cls, text) {
+    const e = document.createElement(tag);
+    if (cls) e.className = cls;
+    if (text !== undefined) e.textContent = text;
+    return e;
+  },
+
+  _speakBtn(text) {
+    const b = this._el('button', 'ls-speak');
+    b.type = 'button';
+    b.setAttribute('aria-label', 'Play audio');
+    b.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M15.5 8.5a5 5 0 010 7M19 5a10 10 0 010 14"/></svg>';
+    b.addEventListener('click', () => Speech.speak(text, this._lang));
+    return b;
+  },
+
+  _prompt(label, text, speak) {
+    const c = this._el('div', 'quiz-prompt-card');
+    c.appendChild(this._el('p', 'quiz-prompt-label', label));
+    c.appendChild(this._el('p', 'quiz-question', text));
+    if (speak && this._lang) c.appendChild(this._speakBtn(speak));
+    return c;
+  },
+
+  _input(placeholder) {
+    const i = this._el('input', 'form-input ls-input');
+    i.type = 'text';
+    i.placeholder = placeholder;
+    i.autocomplete = 'off';
+    i.autocapitalize = 'off';
+    i.spellcheck = false;
+    i.setAttribute('aria-label', 'Your answer');
+    i.addEventListener('input', () => this._refresh());
+    i.addEventListener('keydown', e => { if (e.key === 'Enter' && !e.repeat) { e.preventDefault(); this.primary(); } });
+    this._inputEl = i;
+    return i;
+  },
+
+  _optionList(opts) {
+    const box = this._el('div', 'ls-options');
+    opts.forEach((o, i) => {
+      const b = this._el('button', 'ls-opt');
+      b.type = 'button';
+      b.dataset.val = o;
+      b.innerHTML = `<span class="opt-key">${i + 1}</span><span class="ls-opt-text">${_esc(o)}</span>`;
+      b.addEventListener('click', () => this._choose(b, o));
+      box.appendChild(b);
+    });
+    return box;
+  },
+
+  _choose(btn, val) {
+    if (!this._ex || this._ex.state !== 'ask') return;
+    this._sel = val;
+    document.querySelectorAll('#ls-body .ls-opt, #ls-body .ls-chip.pick').forEach(b => b.classList.toggle('selected', b === btn));
+    if (this._ex.type === 'blank') {
+      const g = document.getElementById('ls-gap');
+      if (g) { g.textContent = val; g.classList.add('filled'); }
+    }
+    this._refresh();
+  },
+
+  _render() {
+    const ex = this._queue[0];
+    this._ex = ex;
+    ex.state = 'ask';
+    this._sel = null; this._built = []; this._inputEl = null; this._mSel = null;
+    clearTimeout(this._audioT);
+    Speech.cancel();
+
+    const bar = document.getElementById('ls-bar');
+    bar.className = 'ls-bar';
+    document.getElementById('ls-msg').innerHTML = '';
+    const check = document.getElementById('ls-check');
+    check.textContent = 'Check';
+    check.disabled = true;
+    document.getElementById('ls-skip').classList.toggle('hidden', ex.type === 'match');
+    check.classList.toggle('hidden', ex.type === 'match');
+
+    const body = document.getElementById('ls-body');
+    body.innerHTML = '';
+    const instr = {
+      mc_def2term: 'Which term matches this definition?',
+      mc_term2def: 'What does this term mean?',
+      blank:       'Fill in the missing word',
+      type:        'Type the term',
+      build:       'Build the definition',
+      match:       'Tap the matching pairs',
+      listen_pick: 'Tap what you hear',
+      listen_type: 'Type what you hear',
+    }[ex.type];
+    document.getElementById('ls-instr').textContent = instr;
+    this['_r_' + ex.type](ex, body);
+
+    this._hud();
+    this._refresh();
+  },
+
+  _hud() {
+    document.getElementById('ls-fill').style.width = Utils.pct(this._done, this._total) + '%';
+    const h = document.getElementById('ls-hearts');
+    h.innerHTML = Array.from({ length: this.HEARTS }, (_, i) =>
+      `<span class="heart${i >= this._hearts ? ' lost' : ''}">♥</span>`).join('');
+    h.setAttribute('aria-label', this._hearts + ' hearts left');
+  },
+
+  _r_mc_def2term(ex, body) {
+    body.appendChild(this._prompt('Definition', ex.card.definition));
+    body.appendChild(this._optionList(ex.options));
+  },
+
+  _r_mc_term2def(ex, body) {
+    body.appendChild(this._prompt('Term', ex.card.term, ex.card.term));
+    body.appendChild(this._optionList(ex.options));
+  },
+
+  _r_listen_pick(ex, body) {
+    const wrap = this._el('div', 'ls-listen');
+    wrap.appendChild(this._speakBtn(ex.card.term));
+    const slow = this._el('button', 'ls-speak slow');
+    slow.type = 'button';
+    slow.textContent = 'Slow';
+    slow.addEventListener('click', () => Speech.speak(ex.card.term, this._lang, 0.6));
+    wrap.appendChild(slow);
+    body.appendChild(wrap);
+    body.appendChild(this._optionList(ex.options));
+    this._autoplay(ex);
+  },
+
+  _r_listen_type(ex, body) {
+    const wrap = this._el('div', 'ls-listen');
+    wrap.appendChild(this._speakBtn(ex.card.term));
+    const slow = this._el('button', 'ls-speak slow');
+    slow.type = 'button';
+    slow.textContent = 'Slow';
+    slow.addEventListener('click', () => Speech.speak(ex.card.term, this._lang, 0.6));
+    wrap.appendChild(slow);
+    body.appendChild(wrap);
+    body.appendChild(this._input('Type what you hear'));
+    this._inputEl.focus();
+    this._autoplay(ex);
+  },
+
+  _autoplay(ex) {
+    this._audioT = setTimeout(() => Speech.speak(ex.card.term, this._lang), 250);
+  },
+
+  _r_type(ex, body) {
+    body.appendChild(this._prompt('Definition', ex.card.definition));
+    body.appendChild(this._input('Type the term'));
+    this._inputEl.focus();
+  },
+
+  _r_blank(ex, body) {
+    body.appendChild(this._el('p', 'ls-context', 'Definition of ' + ex.card.term));
+    const card = this._el('div', 'quiz-prompt-card ls-sentence');
+    const p = this._el('p', 'quiz-question');
+    ex.tokens.forEach((t, i) => {
+      if (i > 0) p.appendChild(document.createTextNode(' '));
+      if (i === ex.gap) {
+        if (ex.pre) p.appendChild(document.createTextNode(ex.pre));
+        const g = this._el('span', 'ls-gap', '');
+        g.id = 'ls-gap';
+        p.appendChild(g);
+        if (ex.post) p.appendChild(document.createTextNode(ex.post));
+      } else {
+        p.appendChild(document.createTextNode(t));
+      }
+    });
+    card.appendChild(p);
+    body.appendChild(card);
+
+    if (ex.typed) {
+      body.appendChild(this._input('Type the missing word'));
+      this._inputEl.focus();
+    } else {
+      const bank = this._el('div', 'ls-bank pick-bank');
+      ex.options.forEach(o => {
+        const b = this._el('button', 'ls-chip pick', o);
+        b.type = 'button';
+        b.dataset.val = o;
+        b.addEventListener('click', () => this._choose(b, o));
+        bank.appendChild(b);
+      });
+      body.appendChild(bank);
+    }
+  },
+
+  _r_build(ex, body) {
+    body.appendChild(this._prompt('Build the definition of', ex.card.term, ex.card.term));
+    const line = this._el('div', 'ls-answer');
+    line.id = 'ls-answer';
+    const bank = this._el('div', 'ls-bank');
+    bank.id = 'ls-bank';
+    body.appendChild(line);
+    body.appendChild(bank);
+    this._drawBuild();
+  },
+
+  _drawBuild() {
+    const ex = this._ex;
+    const line = document.getElementById('ls-answer');
+    const bank = document.getElementById('ls-bank');
+    if (!line || !bank) return;
+    line.innerHTML = ''; bank.innerHTML = '';
+    this._built.forEach(id => {
+      const c = ex.chips.find(x => x.id === id);
+      const b = this._el('button', 'ls-chip', c.text);
+      b.type = 'button';
+      b.addEventListener('click', () => {
+        if (ex.state !== 'ask') return;
+        this._built = this._built.filter(x => x !== id);
+        this._drawBuild(); this._refresh();
+      });
+      line.appendChild(b);
+    });
+    ex.chips.forEach(c => {
+      if (this._built.includes(c.id)) return;
+      const b = this._el('button', 'ls-chip', c.text);
+      b.type = 'button';
+      b.addEventListener('click', () => {
+        if (ex.state !== 'ask') return;
+        this._built.push(c.id);
+        this._drawBuild(); this._refresh();
+      });
+      bank.appendChild(b);
+    });
+  },
+
+  _r_match(ex, body) {
+    ex.matched = 0;
+    const grid = this._el('div', 'ls-match');
+    const colL = this._el('div', 'ls-col');
+    const colR = this._el('div', 'ls-col');
+    const mk = (c, side, text) => {
+      const b = this._el('button', 'ls-tile', text);
+      b.type = 'button';
+      b.dataset.id = c.id;
+      b.dataset.side = side;
+      b.addEventListener('click', () => this._tapTile(b));
+      return b;
+    };
+    ex.left.forEach(c  => colL.appendChild(mk(c, 'l', c.term)));
+    ex.right.forEach(c => colR.appendChild(mk(c, 'r', c.definition)));
+    grid.appendChild(colL); grid.appendChild(colR);
+    body.appendChild(grid);
+  },
+
+  _tapTile(btn) {
+    const ex = this._ex;
+    if (!ex || ex.state !== 'ask' || btn.classList.contains('matched')) return;
+    const prev = this._mSel;
+    if (!prev || prev.dataset.side === btn.dataset.side) {
+      if (prev) prev.classList.remove('selected');
+      if (prev === btn) { this._mSel = null; return; }
+      this._mSel = btn;
+      btn.classList.add('selected');
+      return;
+    }
+    // one from each side
+    this._mSel = null;
+    prev.classList.remove('selected');
+    if (prev.dataset.id === btn.dataset.id) {
+      [prev, btn].forEach(b => b.classList.add('matched'));
+      DB.Progress.recordCard(this._set.id, btn.dataset.id, true);
+      ex.matched++;
+      if (ex.matched === ex.pairs.length) {
+        ex.failed = ex.mm > 0;       // mistakes cost no hearts here, but cost first-try credit
+        this._settle(true, '');
+      }
+    } else {
+      ex.mm++;
+      const termTile = prev.dataset.side === 'l' ? prev : btn;
+      DB.Progress.recordCard(this._set.id, termTile.dataset.id, false);
+      [prev, btn].forEach(b => b.classList.add('shake'));
+      setTimeout(() => [prev, btn].forEach(b => b.classList.remove('shake')), 320);
+    }
+  },
+
+  /* ---------- checking ---------- */
+
+  _isReady() {
+    const ex = this._ex;
+    if (!ex) return false;
+    switch (ex.type) {
+      case 'mc_def2term': case 'mc_term2def': case 'listen_pick': return this._sel !== null;
+      case 'blank':       return ex.typed ? !!(this._inputEl && this._inputEl.value.trim()) : this._sel !== null;
+      case 'type': case 'listen_type': return !!(this._inputEl && this._inputEl.value.trim());
+      case 'build':       return this._built.length > 0;
+      default:            return false;
+    }
+  },
+
+  _refresh() {
+    const check = document.getElementById('ls-check');
+    if (this._ex && this._ex.state === 'ask') check.disabled = !this._isReady();
+  },
+
+  _evaluate() {
+    const ex = this._ex, c = ex.card;
+    switch (ex.type) {
+      case 'mc_def2term': case 'listen_pick':
+        return { ok: this._sel === c.term, answer: c.term };
+      case 'mc_term2def':
+        return { ok: this._sel === c.definition, answer: c.definition };
+      case 'blank': {
+        if (ex.typed) {
+          const r = Utils.checkTyped(this._inputEl.value, ex.answer);
+          return { ok: r !== 'wrong', close: r === 'close', answer: ex.answer };
+        }
+        return { ok: this._sel === ex.answer, answer: ex.answer };
+      }
+      case 'type': case 'listen_type': {
+        const r = Utils.checkTyped(this._inputEl.value, c.term);
+        return { ok: r !== 'wrong', close: r === 'close', answer: c.term };
+      }
+      case 'build': {
+        const got = this._built.map(id => ex.chips.find(x => x.id === id).text).join(' ');
+        return { ok: got === ex.words.join(' '), answer: ex.words.join(' ') };
+      }
+    }
+    return { ok: false, answer: '' };
+  },
+
+  // Enter key / Check / Continue all land here
+  primary() {
+    if (!this._playing || !this._ex) return;
+    if (this._ex.state === 'ask') {
+      if (this._ex.type === 'match' || !this._isReady()) return;
+      const r = this._evaluate();
+      this._settle(r.ok, r.answer, r.close);
+    } else {
+      this._continue();
+    }
+  },
+
+  dontKnow() {
+    if (!this._playing || !this._ex || this._ex.state !== 'ask') return;
+    this._settle(false, this._answerText(), false, true);
+  },
+
+  _answerText() {
+    const ex = this._ex;
+    switch (ex.type) {
+      case 'mc_term2def': return ex.card.definition;
+      case 'blank':       return ex.answer;
+      case 'build':       return ex.words.join(' ');
+      default:            return ex.card.term;
+    }
+  },
+
+  _settle(ok, answer, close, gaveUp) {
+    const ex = this._ex;
+    ex.state = ok ? 'right' : 'wrong';
+    const first = !ex.failed;
+
+    // progress + counters
+    if (ex.type !== 'match') DB.Progress.recordCard(this._set.id, ex.card.id, ok);
+    if (!ex.counted) {
+      ex.counted = true;
+      this._attempts++;
+      if (ok && first) this._firstOk++;
+    }
+    if (ok) {
+      this._xp += first ? 10 : 5;
+    } else {
+      ex.failed = true;
+      this._hearts = Math.max(0, this._hearts - 1);
+      this._mistakes++;
+      this._missed.set(ex.card.id, ex.card);
+    }
+
+    this._paint(ok, answer);
+
+    const praise = ['Nice!', 'Great!', 'Exactly!', 'Correct!', 'Well done!'];
+    const msg = document.getElementById('ls-msg');
+    if (ok) {
+      msg.innerHTML = `<strong>${_esc(praise[Math.floor(Math.random() * praise.length)])}</strong>` +
+        (close ? `<span>Mind the spelling: ${_esc(answer)}</span>` : '');
+    } else {
+      msg.innerHTML = `<strong>${gaveUp ? 'No problem' : 'Not quite'}</strong>` +
+        (answer ? `<span>Correct answer: ${_esc(answer)}</span>` : '') +
+        `<span class="ls-again">You'll see this one again.</span>`;
+    }
+    document.getElementById('ls-bar').className = 'ls-bar ' + (ok ? 'right' : 'wrong');
+    const check = document.getElementById('ls-check');
+    check.classList.remove('hidden');
+    check.textContent = 'Continue';
+    check.disabled = false;
+    document.getElementById('ls-skip').classList.add('hidden');
+    this._hud();
+  },
+
+  _paint(ok, answer) {
+    const ex = this._ex;
+    const cls = ok ? 'correct' : 'wrong';
+    document.querySelectorAll('#ls-body .ls-opt').forEach(b => {
+      b.classList.add('locked');
+      if (b.dataset.val === answer) b.classList.add('correct');
+      else if (b.classList.contains('selected')) b.classList.add('wrong');
+    });
+    if (ex.type === 'blank') {
+      const g = document.getElementById('ls-gap');
+      if (g) { g.textContent = ex.answer; g.className = 'ls-gap filled ' + cls; }
+      document.querySelectorAll('#ls-body .ls-chip.pick').forEach(b => {
+        b.classList.add('locked');
+        if (b.dataset.val === ex.answer) b.classList.add('correct');
+        else if (b.classList.contains('selected')) b.classList.add('wrong');
+      });
+    }
+    if (this._inputEl) { this._inputEl.readOnly = true; this._inputEl.classList.add(cls); }
+    if (ex.type === 'build') {
+      const line = document.getElementById('ls-answer');
+      if (line) line.classList.add(cls);
+      document.querySelectorAll('#ls-body .ls-chip').forEach(b => b.classList.add('locked'));
+    }
+  },
+
+  _continue() {
+    const ex = this._ex;
+    if (ex.state === 'right') {
+      this._done++;
+      this._queue.shift();
+    } else if (ex.state === 'wrong') {
+      this._queue.shift();
+      if (this._hearts <= 0) { this._finish(false); return; }
+      this._queue.push(ex);                 // missed exercises repeat at the end
+    } else {
+      return;
+    }
+    if (!this._queue.length) this._finish(true);
+    else this._render();
+  },
+
+  _finish(passed) {
+    this._playing = false;
+    Speech.cancel();
+    const dur = Date.now() - this._startMs;
+    const set = this._set;
+    let bonus = 0;
+    if (passed && this._mistakes === 0) bonus = 10;
+    const earned = this._xp + bonus;
+    const total  = DB.Meta.addXp(earned);
+
+    if (this._attempts > 0) DB.Progress.recordSession(set.id, this._firstOk, this._attempts);
+    DB.Sessions.log(set.id, 'lesson', this._firstOk, this._attempts, dur);
+
+    document.getElementById('lesson-play').classList.add('hidden');
+    const acc = Utils.pct(this._firstOk, this._attempts);
+    _renderResult('lesson', {
+      title: passed ? 'Lesson complete' : 'Out of hearts',
+      sub:   passed
+        ? (bonus ? 'A perfect lesson — +10 bonus XP. ' : '') + 'Total XP: ' + total
+        : 'Look over these cards, then give it another go.',
+      stats: [
+        { value: '+' + earned,                cls: 'correct', label: 'XP earned' },
+        { value: acc + '%',                    cls: acc >= 70 ? 'correct' : 'wrong', label: 'Right first try' },
+        { value: this._hearts + ' / ' + this.HEARTS, cls: this._hearts ? 'neutral' : 'wrong', label: 'Hearts left' },
+        { value: Utils.formatDuration(dur),    cls: 'neutral', label: 'Time' },
+      ],
+      extra:   _missedList(passed ? 'Worth another look' : 'Cards that tripped you up', [...this._missed.values()]),
+      actions: [
+        { label: passed ? 'Another lesson' : 'Try again', primary: true, onClick: () => this.start() },
+        { label: 'Back to flashcards', onClick: () => App.navigate('flashcards') },
+      ],
+    });
+  },
+
+  // number keys 1-4 pick an option
+  keySelect(n) {
+    if (!this._playing || !this._ex || this._ex.state !== 'ask') return;
+    const els = document.querySelectorAll('#ls-body .ls-opt, #ls-body .ls-chip.pick');
+    if (els[n - 1]) els[n - 1].click();
   },
 };
 
@@ -1377,25 +2892,44 @@ document.addEventListener('keydown', e => {
     return; // don't trigger study shortcuts behind a modal
   }
 
-  const page = App.currentPage;
-  if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+  const tag = e.target.tagName;
+  if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
+  if (e.ctrlKey || e.metaKey || e.altKey) return;
 
-  if (page === 'flashcards') {
+  const page  = App.currentPage;
+  const onBtn = tag === 'BUTTON';
+  const click = (sel, i) => { const els = document.querySelectorAll(sel); if (els[i]) els[i].click(); };
+  const num   = { '1': 0, '2': 1, '3': 2, '4': 3 };
+
+  if (page === 'flashcards' && FlashcardPage.isStudying()) {
     if (e.key === 'ArrowRight' || e.key === 'ArrowDown') FlashcardPage.next();
     if (e.key === 'ArrowLeft'  || e.key === 'ArrowUp')   FlashcardPage.prev();
-    if (e.key === ' ' || e.key === 'Enter')               FlashcardPage.flip();
+    if (e.key === ' ' || e.key === 'Enter') { e.preventDefault(); FlashcardPage.flip(); }
     if (e.key === '1') FlashcardPage.mark(true);
     if (e.key === '2') FlashcardPage.mark(false);
   }
 
-  if (page === 'learn' || page === 'quiz') {
-    const keys = { '1': 0, '2': 1, '3': 2, '4': 3 };
-    if (keys[e.key] !== undefined) {
-      const opts = document.querySelectorAll(
-        page === 'learn' ? '#learn-options .quiz-option' : '#quiz-options .quiz-option'
-      );
-      if (opts[keys[e.key]]) opts[keys[e.key]].click();
-    }
+  if (page === 'learn' && num[e.key] !== undefined) click('#learn-options .quiz-option', num[e.key]);
+  if (page === 'quiz'  && num[e.key] !== undefined) click('#quiz-options .quiz-option',  num[e.key]);
+  if (page === 'speed' && num[e.key] !== undefined) click('#speed-options .quiz-option', num[e.key]);
+
+  if (page === 'lesson') {
+    if (num[e.key] !== undefined) LessonPage.keySelect(num[e.key] + 1);
+    if (e.key === 'Enter' && !e.repeat && !e.target.closest('#ls-bar, .ls-speak')) LessonPage.primary();
+  }
+
+  if (page === 'write' && e.key === 'Enter' && !onBtn && !e.repeat) WritePage._enter();
+
+  if (page === 'hangman') {
+    if (/^[a-z]$/i.test(e.key)) HangmanPage.guess(e.key.toLowerCase());
+    if (e.key === 'Enter' && !onBtn && !e.repeat) HangmanPage.next();
+  }
+
+  if (page === 'tf') {
+    const k = e.key.toLowerCase();
+    if (k === 't' || k === '1') TFPage.answer(true);
+    if (k === 'f' || k === '2') TFPage.answer(false);
+    if (e.key === 'Enter' && !onBtn && !e.repeat) TFPage.next();
   }
 });
 

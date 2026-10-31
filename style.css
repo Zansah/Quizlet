@@ -1602,25 +1602,31 @@ select.form-input { cursor: pointer; }
 }
 
 .ls-close {
-  width: 34px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
   height: 34px;
+  padding: 0 12px 0 10px;
   flex-shrink: 0;
-  border: none;
+  border: 1px solid var(--border);
   border-radius: var(--radius);
-  background: none;
-  color: var(--text-faint);
-  font-size: 24px;
-  line-height: 1;
+  background: var(--surface);
+  color: var(--text-muted);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
   cursor: pointer;
 }
+
+.ls-close span { font-size: 20px; line-height: 1; }
 
 .ls-close:hover { background: var(--surface-alt); color: var(--text); }
 
 .ls-top .progress-track { flex: 1; height: 12px; border-radius: 6px; }
 .ls-top .progress-fill  { border-radius: 6px; background: var(--success); transition: width 0.35s ease; }
 
-.ls-hearts { display: flex; gap: 2px; font-size: 18px; color: var(--danger); flex-shrink: 0; }
-.ls-hearts .heart.lost { color: var(--border-dark); }
+.ls-hearts { display: flex; align-items: center; gap: 4px; font-size: 18px; color: var(--danger); flex-shrink: 0; }
+.ls-hearts .inf { font-size: 20px; font-weight: 700; }
 
 .ls-stage { max-width: 640px; margin: 0 auto; padding-bottom: 150px; }
 
@@ -1804,3 +1810,29 @@ select.form-input { cursor: pointer; }
 .ls-stage { flex: 1; width: 100%; padding-bottom: 24px; }
 .ls-bar { margin-top: auto; }
 #lesson-result, #lesson-intro { max-width: 860px; }
+
+.ls-leave {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  background: rgba(15, 23, 42, 0.45);
+}
+
+.ls-leave.hidden { display: none; }
+
+.ls-leave-box {
+  width: min(400px, 100%);
+  padding: 24px;
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.25);
+}
+
+.ls-leave-box h3 { font-size: 18px; margin-bottom: 8px; }
+.ls-leave-box p { font-size: 14px; line-height: 1.5; color: var(--text-muted); margin-bottom: 20px; }
+.ls-leave-actions { display: flex; flex-direction: column; gap: 10px; }
+.ls-leave-actions button { width: 100%; padding: 12px; }

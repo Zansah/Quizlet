@@ -288,7 +288,7 @@ const App = {
     if (page === 'speed') SpeedPage.stop();
     if (page === 'match') MatchPage.stop();
     if (page === 'tf')    TFPage.stop();
-    if (page === 'lesson') LessonPage.stop();
+    if (page === 'lesson') LessonPage.saveAndStop();
   },
 
   _updateStreak() {
@@ -1648,13 +1648,12 @@ const Speech = {
    ============================================ */
 
 const LessonPage = {
-  HEARTS: 5,
   STOP: new Set(('the and that with from which their there this these those into such when where while also been ' +
     'have has for are was were its your they them than then onto over each other only used uses can may will ' +
     'about between during after before more most some any not but').split(' ')),
 
   _set: null, _lang: '', _queue: [], _ex: null, _total: 0, _done: 0,
-  _hearts: 5, _xp: 0, _attempts: 0, _firstOk: 0, _mistakes: 0, _missed: new Map(), _startMs: 0,
+  _xp: 0, _attempts: 0, _firstOk: 0, _mistakes: 0, _missed: new Map(), _startMs: 0,
   _sel: null, _built: [], _inputEl: null, _mSel: null, _playing: false, _audioT: null,
 
   /* ---------- setup ---------- */
@@ -1680,8 +1679,39 @@ const LessonPage = {
     Speech.cancel();
   },
 
-  quit() {
+  // Save what was answered so far (XP + stats), then stop. Used for every way of leaving.
+  saveAndStop() {
+    if (this._playing && this._attempts > 0) {
+      DB.Meta.addXp(this._xp);
+      DB.Progress.recordSession(this._set.id, this._firstOk, this._attempts);
+      DB.Sessions.log(this._set.id, 'lesson', this._firstOk, this._attempts, Date.now() - this._startMs);
+      this._savedXp = this._xp;
+    } else {
+      this._savedXp = 0;
+    }
     this.stop();
+  },
+
+  // Leave button, Escape key: confirm first if there is progress to lose
+  leave() {
+    if (!this._playing) { App.navigate('sets'); return; }
+    if (this._attempts === 0) { this.confirmLeave(); return; }
+    document.getElementById('ls-leave').classList.remove('hidden');
+    document.getElementById('ls-leave-keep').focus();
+  },
+
+  keepGoing() {
+    document.getElementById('ls-leave').classList.add('hidden');
+  },
+
+  isLeaveOpen() {
+    return !document.getElementById('ls-leave').classList.contains('hidden');
+  },
+
+  confirmLeave() {
+    document.getElementById('ls-leave').classList.add('hidden');
+    this.saveAndStop();
+    if (this._savedXp > 0) Toast.show('Lesson saved — +' + this._savedXp + ' XP', 'success');
     App.navigate('sets');
   },
 
@@ -1723,7 +1753,6 @@ const LessonPage = {
     this._queue    = this._build(len);
     this._total    = this._queue.length;
     this._done     = 0;
-    this._hearts   = this.HEARTS;
     this._xp       = 0;
     this._attempts = 0;
     this._firstOk  = 0;
@@ -1879,7 +1908,10 @@ const LessonPage = {
     i.spellcheck = false;
     i.setAttribute('aria-label', 'Your answer');
     i.addEventListener('input', () => this._refresh());
-    i.addEventListener('keydown', e => { if (e.key === 'Enter' && !e.repeat) { e.preventDefault(); this.primary(); } });
+    i.addEventListener('keydown', e => {
+      if (e.key === 'Enter' && !e.repeat) { e.preventDefault(); this.primary(); }
+      if (e.key === 'Escape') this.leave();
+    });
     this._inputEl = i;
     return i;
   },
@@ -1947,9 +1979,8 @@ const LessonPage = {
   _hud() {
     document.getElementById('ls-fill').style.width = Utils.pct(this._done, this._total) + '%';
     const h = document.getElementById('ls-hearts');
-    h.innerHTML = Array.from({ length: this.HEARTS }, (_, i) =>
-      `<span class="heart${i >= this._hearts ? ' lost' : ''}">♥</span>`).join('');
-    h.setAttribute('aria-label', this._hearts + ' hearts left');
+    h.innerHTML = '<span class="heart">♥</span><span class="inf">∞</span>';
+    h.setAttribute('aria-label', 'Unlimited hearts');
   },
 
   _r_mc_def2term(ex, body) {
@@ -2172,7 +2203,7 @@ const LessonPage = {
 
   // Enter key / Check / Continue all land here
   primary() {
-    if (!this._playing || !this._ex) return;
+    if (!this._playing || !this._ex || this.isLeaveOpen()) return;
     if (this._ex.state === 'ask') {
       if (this._ex.type === 'match' || !this._isReady()) return;
       const r = this._evaluate();
@@ -2213,7 +2244,6 @@ const LessonPage = {
       this._xp += first ? 10 : 5;
     } else {
       ex.failed = true;
-      this._hearts = Math.max(0, this._hearts - 1);
       this._mistakes++;
       this._missed.set(ex.card.id, ex.card);
     }
@@ -2271,22 +2301,20 @@ const LessonPage = {
       this._queue.shift();
     } else if (ex.state === 'wrong') {
       this._queue.shift();
-      if (this._hearts <= 0) { this._finish(false); return; }
       this._queue.push(ex);                 // missed exercises repeat at the end
     } else {
       return;
     }
-    if (!this._queue.length) this._finish(true);
+    if (!this._queue.length) this._finish();
     else this._render();
   },
 
-  _finish(passed) {
+  _finish() {
     this._playing = false;
     Speech.cancel();
     const dur = Date.now() - this._startMs;
     const set = this._set;
-    let bonus = 0;
-    if (passed && this._mistakes === 0) bonus = 10;
+    const bonus  = this._mistakes === 0 ? 10 : 0;
     const earned = this._xp + bonus;
     const total  = DB.Meta.addXp(earned);
 
@@ -2296,19 +2324,17 @@ const LessonPage = {
     document.getElementById('lesson-play').classList.add('hidden');
     const acc = Utils.pct(this._firstOk, this._attempts);
     _renderResult('lesson', {
-      title: passed ? 'Lesson complete' : 'Out of hearts',
-      sub:   passed
-        ? (bonus ? 'A perfect lesson — +10 bonus XP. ' : '') + 'Total XP: ' + total
-        : 'Look over these cards, then give it another go.',
+      title: 'Lesson complete',
+      sub:   (bonus ? 'A perfect lesson — +10 bonus XP. ' : '') + 'Total XP: ' + total,
       stats: [
-        { value: '+' + earned,                cls: 'correct', label: 'XP earned' },
-        { value: acc + '%',                    cls: acc >= 70 ? 'correct' : 'wrong', label: 'Right first try' },
-        { value: this._hearts + ' / ' + this.HEARTS, cls: this._hearts ? 'neutral' : 'wrong', label: 'Hearts left' },
-        { value: Utils.formatDuration(dur),    cls: 'neutral', label: 'Time' },
+        { value: '+' + earned,             cls: 'correct', label: 'XP earned' },
+        { value: acc + '%',                 cls: acc >= 70 ? 'correct' : 'wrong', label: 'Right first try' },
+        { value: this._mistakes,            cls: this._mistakes ? 'wrong' : 'neutral', label: this._mistakes === 1 ? 'Mistake' : 'Mistakes' },
+        { value: Utils.formatDuration(dur), cls: 'neutral', label: 'Time' },
       ],
-      extra:   _missedList(passed ? 'Worth another look' : 'Cards that tripped you up', [...this._missed.values()]),
+      extra:   _missedList('Worth another look', [...this._missed.values()]),
       actions: [
-        { label: passed ? 'Another lesson' : 'Try again', primary: true, onClick: () => this.start() },
+        { label: 'Another lesson', primary: true, onClick: () => this.start() },
         { label: 'Back to flashcards', onClick: () => App.navigate('flashcards') },
       ],
     });
@@ -2914,6 +2940,8 @@ document.addEventListener('keydown', e => {
   if (page === 'speed' && num[e.key] !== undefined) click('#speed-options .quiz-option', num[e.key]);
 
   if (page === 'lesson') {
+    if (e.key === 'Escape') { if (LessonPage.isLeaveOpen()) LessonPage.keepGoing(); else LessonPage.leave(); return; }
+    if (LessonPage.isLeaveOpen()) return;
     if (num[e.key] !== undefined) LessonPage.keySelect(num[e.key] + 1);
     if (e.key === 'Enter' && !e.repeat && !e.target.closest('#ls-bar, .ls-speak')) LessonPage.primary();
   }
